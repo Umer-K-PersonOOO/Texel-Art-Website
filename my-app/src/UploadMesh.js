@@ -1,128 +1,96 @@
-import logo from "./logo.svg";
-import { useState } from 'react';
-
-
-function VideoUploader({ onFileSelect }) { 
-  const handleFileChange = (e) => { const file = e.target.files[0]; 
-    if (file && file.type.startsWith('video')) { 
-      onFileSelect(file); 
-    } 
-    else { 
-      alert("Please upload a valid video file."); 
-    } 
-  }; 
-  return ( 
-  <div className="uploader"> 
-  <label htmlFor="videoFile">Upload Video File:</label> 
-  <input type="file" id="videoFile" accept="video/*" onChange={handleFileChange} /> 
-  </div> ); 
-  }
-
-  function FPXUploader({ onFileSelect }) { 
-    const handleFileChange = (e) => { const file = e.target.files[0]; 
-      if (file && file.type.startsWith('.fpx')) { 
-        onFileSelect(file); 
-      } 
-      else { 
-        alert("Please upload a valid .fpx file."); 
-      } 
-    }; 
-    return ( 
-    <div className="uploader"> 
-    <label htmlFor="fpxFile">Upload .FPX File:</label> 
-    <input type="file" id="fpxFile" accept=".fpx" onChange={handleFileChange} /> 
-    </div> 
-    ); 
-    }
-
+import React, { useState } from "react";
 
 function UploadMesh() {
+    const [message, setMessage] = useState("");
 
-  const [videoFile, setVideoFile] = useState(null);
-  const [fpxFile, setFpxFile] = useState(null);
+    const handleUpload = (e) => {
+        e.preventDefault();
+        setMessage("Files uploaded successfully! (Placeholder)");
+    };
 
-  const handleSubmit = async () => {
-    if (!videoFile || !fpxFile) {
-      alert("Please upload both video and .fpx files before submitting.");
-      return;
-    }
+    return (
+        <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-10">
+            {/* Upload Section */}
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-lg">
+                <h2 className="text-2xl font-semibold text-center mb-4">Upload Mesh</h2>
 
-    const formData = new FormData();
-    formData.append("videoFile", videoFile);
-    formData.append("fpxFile", fpxFile);
+                <form onSubmit={handleUpload} className="space-y-4">
+                    {/* Video File Input */}
+                    <div className="flex flex-col">
+                        <label className="text-gray-300 mb-1">Upload Video File</label>
+                        <input
+                            type="file"
+                            className="file:bg-blue-500 file:text-white file:border-none file:py-2 file:px-4 rounded-md shadow-sm cursor-pointer"
+                            required
+                        />
+                    </div>
 
-    try {
-      const response = await fetch('/upload', {
-        method: 'POST',
-        body: formData,
-      });
+                    {/* FPX File Input */}
+                    <div className="flex flex-col">
+                        <label className="text-gray-300 mb-1">Upload .FPX File</label>
+                        <input
+                            type="file"
+                            className="file:bg-blue-500 file:text-white file:border-none file:py-2 file:px-4 rounded-md shadow-sm cursor-pointer"
+                            required
+                        />
+                    </div>
 
-      const result = await response.json();
-      console.log("Response from server:", result);
-    } catch (error) {
-      console.error("Error uploading files:", error);
-    }
-  };
+                    <button
+                        type="submit"
+                        className="w-full py-2 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600 transition duration-200"
+                    >
+                        Submit
+                    </button>
+                </form>
 
+                {message && <p className="text-green-400 mt-3 text-center">{message}</p>}
+            </div>
 
-/*
-  -- Way for upload ( one should be movie file and the other should be a .fpx)
-  -- Preview on Upload
-  -- Backend task: Send file and then return list of bones
-  -- Table for selecting which bone in mesh relates to which human joint
-  -- Backend task make sure they fill everything out and send it to back end
-  -- Submit and go to next page
-*/
-  return (
-    
-    <div className="">
-  <h1>Upload Mesh</h1>
-      <VideoUploader onFileSelect={setVideoFile} />
-      <FPXUploader onFileSelect={setFpxFile} />
-      <button onClick={handleSubmit}>Submit</button>
+            {/* Preview Section */}
+            <div className="bg-gray-800 p-6 mt-10 rounded-lg shadow-lg w-full max-w-lg text-center">
+                <h2 className="text-xl font-semibold mb-2">Preview Screen</h2>
+                <div className="w-full h-40 bg-gray-700 rounded-md flex items-center justify-center">
+                    <p className="text-gray-400">[ Mesh Preview Here ]</p>
+                </div>
+            </div>
 
-     <div className="flex">
-      <div className="w-1/3"> 
-        <input type="file" id="file" name="file" multiple /> 
-      </div>
-      <div className="w-2/3 py-10"> 
-        <div className="bg-gray-600 w-[90%]"> preview screen</div>
-      </div>
-      <p> Choose which bone in the mesh relates to which human joint </p>
-      <div></div>
-      <table>
-      <thead>
-        <tr>
-          <th>Bone</th>
-          <th>Human Joint</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <select>
-              <option value="Option">Sample Bone 1</option>
-              <option value="opt2">Sample Bone 2</option>
-              <option value ="opt3">Sample Bone 3</option>
-            </select>
-          </td>
-          <td>
-            <select>
-              <option value="opt1">Sample Joint</option>
-              <option value="opt2">Sample joint2</option>
-              <option value="opt3">Sample joint3</option>
-            </select>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <button>
-      <a type="button" href="nextPage.html">Next Page</a>
-    </button>
-    </div>
-  </div>
-);
+            {/* Bone Mapping Section */}
+            <div className="bg-gray-800 p-6 mt-10 rounded-lg shadow-lg w-full max-w-2xl">
+                <h2 className="text-xl font-semibold mb-4 text-center">Bone-Joint Mapping</h2>
 
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-700 text-white">
+                                <th className="p-3">Bone</th>
+                                <th className="p-3">Human Joint</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr className="border-b border-gray-600">
+                                <td className="p-3">
+                                    <select className="bg-gray-700 text-white p-2 rounded-md w-full">
+                                        <option>Sample Bone 1</option>
+                                        <option>Sample Bone 2</option>
+                                    </select>
+                                </td>
+                                <td className="p-3">
+                                    <select className="bg-gray-700 text-white p-2 rounded-md w-full">
+                                        <option>Sample Joint 1</option>
+                                        <option>Sample Joint 2</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <button className="mt-4 w-full py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600 transition duration-200">
+                    Next Page
+                </button>
+            </div>
+        </div>
+    );
 }
 
 export default UploadMesh;
