@@ -4,10 +4,5 @@ sqlalchemy
 asyncpg
 psycopg2
 alembic
-fastapi
-uvicorn
-sqlalchemy
-asyncpg
-psycopg2
-alembic
 python-multipart
+bpy
