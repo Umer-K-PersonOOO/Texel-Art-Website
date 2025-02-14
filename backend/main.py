@@ -4,6 +4,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import os
 import shutil
+import bpy
+bpy.ops.wm.read_factory_settings(use_empty=True)  # Clears default Blender scene
+
 
 # FastAPI App
 app = FastAPI()
@@ -59,7 +62,20 @@ async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_d
 
     return {"message": "Video uploaded successfully", "id": video.id, "filename": file.filename}
 
-# Upload Rig Endpoint
+def extract_bones_from_rig(filepath):
+    bpy.ops.import_scene.fbx(filepath=filepath)
+
+
+    armature = None
+    for obj in bpy.data.objects:
+        if obj.type == 'ARMATURE':
+            armature = obj
+            break
+
+    if armature:
+        return [bone.name for bone in armature.data.bones]
+    return []
+
 @app.post("/upload/rig/")
 async def upload_rig(file: UploadFile = File(...), db: Session = Depends(get_db)):
     file_location = f"{UPLOAD_DIR}/{file.filename}"
@@ -72,7 +88,11 @@ async def upload_rig(file: UploadFile = File(...), db: Session = Depends(get_db)
     db.commit()
     db.refresh(rig)
 
-    return {"message": "Rig uploaded successfully", "id": rig.id, "filename": file.filename}
+    # Extract bones from file
+    bone_names = extract_bones_from_rig(file_location)
+
+    return {"message": "Rig uploaded successfully", "id": rig.id, "filename": file.filename, "bones": bone_names}
+
 
 # Get All Uploaded Videos
 @app.get("/videos/")
