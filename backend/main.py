@@ -5,6 +5,8 @@ from sqlalchemy.orm import sessionmaker, Session
 import os
 import shutil
 import bpy
+import subprocess
+
 bpy.ops.wm.read_factory_settings(use_empty=True)  # Clears default Blender scene
 
 
@@ -108,3 +110,35 @@ def get_rigs(db: Session = Depends(get_db)):
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
+
+
+def run_blender_mocap(video_path):
+    script_path = "~/Desktop/Code/Texel-Art-Media/src/addon_script.py"  # Path to your Blender script    
+
+    command = [
+                "sudo", "blender", "--python", script_path
+    ]
+
+    try:
+        print("Running Blender script...")
+        subprocess.run(" ".join(command), shell=True, check=True)
+        return {"message": "Mocap processing completed successfully"}
+    except subprocess.CalledProcessError as e:
+        return {"error": f"Blender execution failed: {e}"}
+
+@app.post("/process/video/{video_id}")
+def process_video(video_id: int, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    # if not video:
+    #     return {"error": "Video not found"}
+
+    # result = run_blender_mocap(video.filepath)
+    try:
+        result = run_blender_mocap("")
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+    
+    
+
+
