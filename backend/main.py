@@ -113,7 +113,7 @@ def read_root():
 
 
 def run_blender_mocap(video_path):
-    script_path = "~/Desktop/Code/Texel-Art-Media/src/addon_script.py"  # Path to your Blender script    
+    script_path = "/home/personooo/Desktop/Code/Texel-Art-Website/default/Texel-Art-Website/backend/Texel-Art-Media/src/addon_script.py"  # Path to your Blender script    
 
     command = [
                 "sudo", "blender", "--python", script_path
