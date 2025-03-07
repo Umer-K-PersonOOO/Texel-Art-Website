@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Depends
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import os
@@ -129,12 +129,23 @@ def run_blender_mocap(video_path):
 @app.post("/process/video/{video_id}")
 def process_video(video_id: int, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
+    # points = Table(
+    #     'points', db,
+    #     Column('id', Integer, primary_key=True, autoincrement=True),
+    #     Column('name', String),
+    #     Column('x', float),
+    #     Column('y', float),
+    #     Column('z', float),
+    # )
+
+
     # if not video:
     #     return {"error": "Video not found"}
 
     # result = run_blender_mocap(video.filepath)
     try:
         result = run_blender_mocap("")
+        json_parsed = 
         return result
     except Exception as e:
         return {"error": str(e)}

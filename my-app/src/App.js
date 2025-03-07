@@ -1,5 +1,6 @@
 import React from "react";
 import UploadMesh from "./UploadMesh";
+import Grid from "./Grid";
 
 function App() {
     return (
@@ -12,6 +13,11 @@ function App() {
             <main className="flex flex-col items-center justify-center flex-grow w-full p-6">
                 <UploadMesh />
             </main>
+
+            <div>
+                <h1 className="text-3xl font-bold">GRID</h1>
+                <Grid />
+            </div>
 
             <footer className="w-full py-4 text-center bg-gray-800">
             </footer>
