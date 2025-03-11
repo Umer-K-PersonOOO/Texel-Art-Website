@@ -145,7 +145,7 @@ def process_video(video_id: int, db: Session = Depends(get_db)):
     # result = run_blender_mocap(video.filepath)
     try:
         result = run_blender_mocap("")
-        json_parsed = 
+        # json_parsed = 
         return result
     except Exception as e:
         return {"error": str(e)}
