@@ -6,8 +6,10 @@ import os
 import shutil
 import bpy
 import subprocess
+from datetime import datetime
 
-bpy.ops.wm.read_factory_settings(use_empty=True)  # Clears default Blender scene
+
+# bpy.ops.wm.read_factory_settings(use_empty=True)  # Clears default Blender scene
 
 
 # FastAPI App
@@ -112,23 +114,32 @@ def read_root():
     return {"message": "Hello, World!"}
 
 
-def run_blender_mocap(video_path):
+def run_blender_mocap(collection_name):
     script_path = "/home/personooo/Desktop/Code/Texel-Art-Website/default/Texel-Art-Website/backend/Texel-Art-Media/src/addon_script.py"  # Path to your Blender script    
-
-    command = [
-                "sudo", "blender", "--python", script_path
-    ]
+    
+    
 
     try:
+        
+
         print("Running Blender script...")
+        command = [
+                    "blender", "--python", script_path, "--", collection_name
+        ]
         subprocess.run(" ".join(command), shell=True, check=True)
+        
         return {"message": "Mocap processing completed successfully"}
     except subprocess.CalledProcessError as e:
-        return {"error": f"Blender execution failed: {e}"}
+        return {"error in script": f"Blender execution failed: {e}"}
 
 @app.post("/process/video/{video_id}")
 def process_video(video_id: int, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
+    
+    video_file_name = "Walk.mp4" # Change to file given by user
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    collection_name = f"cgt_DRIVERS_{video_file_name}_{datetime_str}"
+    
     # points = Table(
     #     'points', db,
     #     Column('id', Integer, primary_key=True, autoincrement=True),
@@ -144,11 +155,14 @@ def process_video(video_id: int, db: Session = Depends(get_db)):
 
     # result = run_blender_mocap(video.filepath)
     try:
-        result = run_blender_mocap("")
-        # json_parsed = 
-        return result
+        result = run_blender_mocap(collection_name)
+        if(result.get("error in script")):
+            return result
+        # Get file path of the output FBX file
+        output_path = os.path.join("/tmp", f"{collection_name}.fbx")
+        return {"message": "Mocap processing completed successfully", "output_path": output_path}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error proccesing video": str(e)}
     
     
 
