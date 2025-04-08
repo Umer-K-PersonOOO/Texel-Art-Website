@@ -19,10 +19,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # Upload Directory
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = "/home/personooo/blender_tmp"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# JointsFile Table
+# JointsFile Table 
 class JointsFile(Base):
     __tablename__ = "joints_files"
     id = Column(Integer, primary_key=True, index=True)
@@ -52,12 +52,12 @@ def generate_unique_name(db: Session, base_name: str):
     return unique_name
 
 # Run Blender Mocap (Your original implementation kept)
-def run_blender_mocap(collection_name):
+def run_blender_mocap(collection_name, file_name):
     script_path = "/home/personooo/Desktop/Code/Texel-Art-Website/default/Texel-Art-Website/backend/Texel-Art-Media/src/addon_script.py"
     try:
         print("Running Blender script...")
         command = [
-            "blender", "--python", script_path, "--", collection_name
+            "blender", "--python", script_path, "--", collection_name, file_name
         ]
         subprocess.run(" ".join(command), shell=True, check=True)
         return {"message": "Mocap processing completed successfully"}
@@ -70,6 +70,7 @@ def process_video(file: UploadFile = File(...), name: str = Form(...), db: Sessi
     try:
         # Save uploaded video temporarily
         file_location = f"{UPLOAD_DIR}/{file.filename}"
+        print(f"Saving file to {file_location}")
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
 
@@ -81,7 +82,7 @@ def process_video(file: UploadFile = File(...), name: str = Form(...), db: Sessi
         output_path = os.path.join(output_dir, f"{collection_name}.blend")
 
         # Run Blender
-        result = run_blender_mocap(collection_name)
+        result = run_blender_mocap(collection_name, file_location)
         if result.get("error in script"):
             return result
 
@@ -103,45 +104,35 @@ def process_video(file: UploadFile = File(...), name: str = Form(...), db: Sessi
             "id": joints_file.id,
             "name": unique_name
         }
+        
     except Exception as e:
         return {"error": str(e)}
 
-@app.post("/transform/")
-def transform_animation(
-    rig_file: UploadFile = File(...),
-    driver_file: UploadFile = File(...)
-):
+@app.post("/transform/rig/")
+def transform_rig(name: str = Form(...)):
     try:
-        # Save input files temporarily
-        tmp_dir = os.path.expanduser("~/blender_tmp")
-        os.makedirs(tmp_dir, exist_ok=True)
+        output_dir = os.path.expanduser(os.path.join("~", "blender_tmp"))
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"{name}.glb")
 
-        rig_path = os.path.join(tmp_dir, "rigs.blend")
-        driver_path = os.path.join(tmp_dir, "test.blend")
-
-        with open(rig_path, "wb") as f:
-            shutil.copyfileobj(rig_file.file, f)
-
-        with open(driver_path, "wb") as f:
-            shutil.copyfileobj(driver_file.file, f)
-
-        # Output path
-        output_path = os.path.join(tmp_dir, "transformed_output.blend")
-
-        # Run Blender script (unchanged call style)
         script_path = "/home/personooo/Desktop/Code/Texel-Art-Website/default/Texel-Art-Website/backend/Texel-Art-Media/src/transform_addon_script.py"
         command = [
-            "blender", "--python", script_path
+            "blender", "--python", script_path, "--", name
         ]
+
         subprocess.run(" ".join(command), shell=True, check=True)
 
-        # Return the resulting .blend file
-        return FileResponse(output_path, media_type="application/octet-stream", filename="transformed_output.blend")
+        return FileResponse(
+            path=output_path,
+            filename=f"{name}.glb",
+            media_type="model/gltf-binary"
+        )
 
     except subprocess.CalledProcessError as e:
-        return {"error": f"Blender execution failed: {e}"}
+        return {"error in script": f"Blender execution failed: {e}"}
     except Exception as e:
         return {"error": str(e)}
+
 
 
 # Get all joints files
