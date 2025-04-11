@@ -1,6 +1,6 @@
 import React from "react";
 import UploadMesh from "./UploadMesh";
-import Grid from "./Grid";
+import Grid from "./components/Grid";
 
 function App() {
     return (
