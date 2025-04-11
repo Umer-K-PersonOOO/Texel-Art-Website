@@ -1,5 +1,4 @@
 import React from "react";
-import XBot from "../assests/XBot.png"; // Adjust the path as necessary
 function SelectMesh() {
     const images = [
         '../assets/XBot.png'
