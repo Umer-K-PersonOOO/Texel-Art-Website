@@ -1,28 +1,19 @@
 import React from "react";
 import UploadMesh from "./UploadMesh";
 import Grid from "./components/Grid";
+import SelectMesh from "./components/SelectMesh";
 
 function App() {
-    return (
-        <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center">
-            <header className="w-full py-5 text-center bg-gradient-to-r from-purple-500 to-blue-500 shadow-lg">
-                <h1 className="text-3xl font-bold">TEXEL Arts Animation Processor</h1>
-                <p className="text-gray-200">Upload animation files and armatures to generate stunning results.</p>
-            </header>
-
-            <main className="flex flex-col items-center justify-center flex-grow w-full p-6">
-                <UploadMesh />
-            </main>
-
-            <div>
-                <h1 className="text-3xl font-bold">GRID</h1>
-                <Grid />
-            </div>
-
-            <footer className="w-full py-4 text-center bg-gray-800">
-            </footer>
-        </div>
-    );
+  return (
+    <div className="bg-gray-900 text-white min-h-screen">
+      {/* Main Title */}
+      <div className="text-center text-4xl font-bold py-5">
+        Texel Art Animation Maker
+      </div>
+      {/* Select Mesh Component */}
+      <SelectMesh />
+    </div>
+  );
 }
 
 export default App;
