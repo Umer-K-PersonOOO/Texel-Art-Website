@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Grid from "./components/Grid";
+import Grid from "../components/Grid";
 
 function UploadMesh() {
   const [message, setMessage] = useState("");
@@ -44,9 +44,9 @@ function UploadMesh() {
                 </p>
               </div>
 
-              {/* FPX File Input */}
+              {/* FBX File Input */}
               <div className="flex flex-col">
-                <label className="text-gray-300 mb-1">Upload .FPX File</label>
+                <label className="text-gray-300 mb-1">Upload .FBX File</label>
                 <input
                   type="file"
                   className="file:bg-blue-500 file:text-white file:border-none file:py-2 file:px-4 rounded-md shadow-sm cursor-pointer"
