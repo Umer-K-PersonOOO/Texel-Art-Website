@@ -11,6 +11,15 @@ from fastapi.responses import FileResponse
 # FastAPI App
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Not recommended for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Database Configuration
 DATABASE_URL = "postgresql://myuser:citrus@localhost/mocap_db"
@@ -109,24 +118,34 @@ def process_video(file: UploadFile = File(...), name: str = Form(...), db: Sessi
         return {"error": str(e)}
 
 @app.post("/transform/rig/")
-def transform_rig(name: str = Form(...)):
+def transform_rig(name: str = Form(...), db: Session = Depends(get_db)):
     try:
         output_dir = os.path.expanduser(os.path.join("~", "blender_tmp"))
         os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, f"{name}.glb")
 
+        output_path = os.path.join(output_dir, f"{name}.glb")
+        blend_input_path = os.path.join(output_dir, f"{name}.blend")
+
+        # ✅ Check cache
+        if os.path.exists(output_path):
+            print(f"[CACHE HIT] Returning cached file for: {name}")
+            return FileResponse(path=output_path, filename=f"{name}.glb", media_type="model/gltf-binary")
+
+        # ✅ Retrieve .blend file from DB
+        joints_file = db.query(JointsFile).filter(JointsFile.name == name).first()
+        if not joints_file:
+            return {"error": f"No .blend file found for name '{name}'"}
+
+        with open(blend_input_path, "wb") as f:
+            f.write(joints_file.filedata)
+
+        # ✅ Run Blender script with the extracted .blend file
         script_path = "/home/personooo/Desktop/Code/Texel-Art-Website/default/Texel-Art-Website/backend/Texel-Art-Media/src/transform_addon_script.py"
-        command = [
-            "blender", "--python", script_path, "--", name
-        ]
+        command = ["blender", "--python", script_path, "--", name, blend_input_path]
 
         subprocess.run(" ".join(command), shell=True, check=True)
 
-        return FileResponse(
-            path=output_path,
-            filename=f"{name}.glb",
-            media_type="model/gltf-binary"
-        )
+        return FileResponse(path=output_path, filename=f"{name}.glb", media_type="model/gltf-binary")
 
     except subprocess.CalledProcessError as e:
         return {"error in script": f"Blender execution failed: {e}"}

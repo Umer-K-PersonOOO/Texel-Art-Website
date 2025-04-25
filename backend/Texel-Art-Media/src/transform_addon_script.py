@@ -7,13 +7,13 @@ import sys
 # Parse command-line args after '--'
 args = sys.argv
 if "--" in args:
-    arg_index = args.index("--") + 1
-    if arg_index < len(args):
-        export_name = args[arg_index]
-    else:
-        export_name = "default_output"
+    idx = args.index("--")
+    export_name = args[idx + 1]
+    blend_input_path = args[idx + 2]
 else:
     export_name = "default_output"
+    blend_input_path = "/home/personooo/fallback.blend"
+
 
 
 class BlenderMocapHandler():
@@ -65,7 +65,7 @@ class BlenderMocapHandler():
         bpy.context.scene.cgtinker_mediapipe.detection_input_type = "movie"
         self.clear_scene()
     
-    def apply_animation(self, export_name):
+    def apply_animation(self, export_name, blend_input_path):
         # to do: figure out how to get the animation to transfer
         # container = bpy.data.collections.new("cgt_DRIVERS")
         # pose_driver = bpy.data.collections.new("cgt_POSE")
@@ -103,7 +103,7 @@ class BlenderMocapHandler():
 
 
         # Step 2: Append the 'cgt_DRIVERS' collection
-        blend_path = "/home/personooo/test.blend"
+        blend_path =  blend_input_path # "/home/personooo/test.blend"
         collection_name = "cgt_DRIVERS"
 
         with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
@@ -251,7 +251,7 @@ class BlenderMocapHandler():
         
     
 handler = BlenderMocapHandler()
-handler.apply_animation(export_name)
+handler.apply_animation(export_name, blend_input_path)
 # time.sleep(20)
 # while not bpy.context.scene.cgtinker_mediapipe.modal_active:
 #     print("Waiting for detection to finish...")

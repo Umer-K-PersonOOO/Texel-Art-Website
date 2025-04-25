@@ -117,7 +117,22 @@ class BlenderMocapHandler():
 
     
 handler = BlenderMocapHandler()
-handler.detect("/home/personooo/Desktop/Code/Texel-Art-Media/Texel-Art-Media/src/Walk.mp4")
+
+# Get args
+if "--" in sys.argv:
+    idx = sys.argv.index("--")
+    collection_name = sys.argv[idx + 1] if len(sys.argv) > idx + 1 else "output"
+    video_path = sys.argv[idx + 2] if len(sys.argv) > idx + 2 else ""
+else:
+    collection_name = "output"
+    video_path = ""
+
+print("Collection Name:", collection_name)
+print("Video Path:", video_path)
+
+# Run detection
+handler.detect(video_path)
+
 # time.sleep(20)
 # while not bpy.context.scene.cgtinker_mediapipe.modal_active:
 #     print("Waiting for detection to finish...")
