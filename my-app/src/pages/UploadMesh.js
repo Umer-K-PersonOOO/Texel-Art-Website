@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Grid from "./components/Grid";
+import Grid from "../components/Grid";
 
 function UploadMesh() {
   const [message, setMessage] = useState("");
