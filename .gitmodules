@@ -1,3 +1,4 @@
 [submodule "backend/Texel-Art-Media"]
 	path = backend/Texel-Art-Media
 	url = git@github.com:Umer-K-PersonOOO/Texel-Art-Media.git
+	branch = main
