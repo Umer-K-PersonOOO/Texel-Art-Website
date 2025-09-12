@@ -1,8 +1,7 @@
 fastapi
-uvicorn
-sqlalchemy
-asyncpg
-psycopg2
+uvicorn[standard]
+SQLAlchemy
+psycopg2-binary
 alembic
 python-multipart
-bpy
+pydantic
