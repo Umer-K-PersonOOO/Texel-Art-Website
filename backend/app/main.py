@@ -1,23 +1,32 @@
 # backend/app/main.py
-from fastapi import FastAPI, UploadFile, File, Form, Depends
+from fastapi import FastAPI, UploadFile, HTTPException, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy import Column, Integer, String, LargeBinary, UniqueConstraint, create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from datetime import datetime
-import os, subprocess, shutil, pathlib
+import os, subprocess, shutil, pathlib, sys, shlex, time, signal
 
-# ----------------------------
-# Configuration (env-driven)
-# ----------------------------
+# Configuration
 ADDON_MODULE = os.getenv("ADDON_MODULE", "BlendArMocap")
-BLENDER_ADDON_SCRIPT = os.getenv("BLENDER_ADDON_SCRIPT", "/opt/addons/BlendArMocap/addon_script.py")
-BLENDER_TRANSFORM_SCRIPT = os.getenv("BLENDER_TRANSFORM_SCRIPT", "/opt/addons/BlendArMocap/transform_addon_script.py")
+BLENDER_BIN = shutil.which("blender") or "/usr/local/bin/blender"
+XVFB_RUN = shutil.which("xvfb-run")
 HEADLESS = os.getenv("HEADLESS", "1") == "1"
+XVFB_SCREEN = os.getenv("XVFB_WHD", "1920x1080x24")
+
+# NOTE: default to the installed add-on inside Blender's addons dir
+MOCAP_SCRIPT = os.getenv(
+    "MOCAP_SCRIPT",
+    "/root/.config/blender/4.1/scripts/addons/BlendArMocap/addon_script.py",
+)
+TRANSFORM_SCRIPT = os.getenv(
+    "TRANSFORM_SCRIPT",
+    "/root/.config/blender/4.1/scripts/addons/BlendArMocap/src/transform_addon_script.py",
+)
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/shared/in")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
-LEGACY_OUT = os.path.expanduser(os.path.join("~", "blender_tmp"))  # to support existing addon behavior
+LEGACY_OUT = os.path.expanduser(os.path.join("~", "blender_tmp"))  # legacy fallback
 
 DEFAULT_SQLITE = "sqlite:////app/backend/mocap.db"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_SQLITE)
@@ -27,9 +36,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(LEGACY_OUT, exist_ok=True)
 
-# ----------------------------
 # Database
-# ----------------------------
 engine_kwargs = {}
 if DATABASE_URL.startswith("sqlite:"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
@@ -54,25 +61,11 @@ def get_db():
     finally:
         db.close()
 
-# ----------------------------
-# Blender helpers
-# ----------------------------
-def _blender_base_cmd() -> list[str]:
-    # Run with virtual display when headless so GUI-bound add-on code still works
-    xvfb_prefix = ["xvfb-run", "-s", "-screen 0 1920x1080x24"] if HEADLESS else []
-    return xvfb_prefix + ["blender", "--factory-startup", "--addons", ADDON_MODULE]
-
-def run_blender_script(script_path: str, *args: str) -> None:
-    cmd = _blender_base_cmd() + ["--python", script_path, "--", *args]
-    # Use list form (no shell); raise on error
-    subprocess.run(cmd, check=True)
-
+# Helpers
 def safe_name(name: str) -> str:
-    # Strip path components and spaces
     return pathlib.Path(name).stem.replace(" ", "_")
 
 def find_output_blend(basename: str) -> str | None:
-    # Check OUTPUT_DIR first, then legacy directory
     cand1 = os.path.join(OUTPUT_DIR, f"{basename}.blend")
     cand2 = os.path.join(LEGACY_OUT, f"{basename}.blend")
     if os.path.exists(cand1): return cand1
@@ -82,21 +75,6 @@ def find_output_blend(basename: str) -> str | None:
 def output_glb_path(basename: str) -> str:
     return os.path.join(OUTPUT_DIR, f"{basename}.glb")
 
-# ----------------------------
-# FastAPI app
-# ----------------------------
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # tighten for prod
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ----------------------------
-# Utilities
-# ----------------------------
 def generate_unique_name(db: Session, base_name: str) -> str:
     count = 0
     unique_name = base_name
@@ -105,9 +83,57 @@ def generate_unique_name(db: Session, base_name: str) -> str:
         unique_name = f"{base_name}_{count}"
     return unique_name
 
-# ----------------------------
-# Routes
-# ----------------------------
+# Blender runners (robust, with Xvfb)
+def _blender_cmd(extra: list[str]) -> list[str]:
+    base = [BLENDER_BIN, "--factory-startup", "--addons", ADDON_MODULE]
+    cmd = base + extra
+    if HEADLESS and XVFB_RUN:
+        return [XVFB_RUN, "-a", "-s", f"-screen 0 {XVFB_SCREEN}"] + cmd
+    return cmd
+
+def _run(cmd: list[str]) -> None:
+    # Optional: env var to tune timeout; default 15 min
+    timeout_s = int(os.getenv("BLENDER_TIMEOUT", "900"))
+
+    # Don’t PIPE; start a new process group so we can kill Xvfb+Blender together
+    p = subprocess.Popen(
+        cmd,
+        stdout=None,
+        stderr=None,
+        preexec_fn=os.setsid
+    )
+    try:
+        rc = p.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        # Kill the whole group: xvfb-run, Xvfb, and blender
+        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        raise HTTPException(status_code=504, detail="Blender transform timed out")
+
+    if rc != 0:
+        raise HTTPException(status_code=500, detail=f"Blender exited with code {rc}")
+
+def run_blender_mocap(collection_name: str, file_path: str) -> None:
+    if not os.path.exists(MOCAP_SCRIPT):
+        raise HTTPException(status_code=500, detail=f"addon_script not found at {MOCAP_SCRIPT}")
+    cmd = _blender_cmd(["--python", MOCAP_SCRIPT, "--", collection_name, file_path])
+    _run(cmd)
+
+def run_blender_transform(name: str, blend_input_path: str) -> None:
+    if not os.path.exists(TRANSFORM_SCRIPT):
+        raise HTTPException(status_code=500, detail=f"transform_addon_script not found at {TRANSFORM_SCRIPT}")
+    cmd = _blender_cmd(["--python", TRANSFORM_SCRIPT, "--", name, blend_input_path])
+    _run(cmd)
+
+# FastAPI
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
@@ -118,73 +144,64 @@ async def process_video(
     name: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    try:
-        # Save upload
-        original = os.path.basename(file.filename)
-        safe_base = safe_name(original)
-        upload_path = os.path.join(UPLOAD_DIR, original)
-        with open(upload_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+    # store upload
+    original = os.path.basename(file.filename)
+    safe_base = safe_name(original)
+    upload_path = os.path.join(UPLOAD_DIR, original)
+    with open(upload_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
 
-        # Collection/output basename
-        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        collection_name = f"cgt_DRIVERS_{safe_base}_{stamp}"
+    # collection/output basename
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    collection_name = f"cgt_DRIVERS_{safe_base}_{stamp}"
 
-        # Run Blender mocap script
-        run_blender_script(BLENDER_ADDON_SCRIPT, collection_name, upload_path)
+    # run Blender
+    run_blender_mocap(collection_name, upload_path)
 
-        # Find produced .blend
-        blend_path = find_output_blend(collection_name)
-        if not blend_path:
-            return {"error": f"Expected output .blend not found for '{collection_name}' in {OUTPUT_DIR} or {LEGACY_OUT}"}
+    # find produced .blend
+    blend_path = find_output_blend(collection_name)
+    if not blend_path:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Expected output .blend not found for '{collection_name}' in {OUTPUT_DIR} or {LEGACY_OUT}",
+        )
 
-        # Read and store in DB under a unique logical name
-        with open(blend_path, "rb") as f:
-            filedata = f.read()
+    # save to DB with unique logical name
+    with open(blend_path, "rb") as f:
+        filedata = f.read()
 
-        unique_name = generate_unique_name(db, name)
-        record = JointsFile(name=unique_name, filedata=filedata)
-        db.add(record)
-        db.commit()
-        db.refresh(record)
+    unique_name = generate_unique_name(db, name)
+    record = JointsFile(name=unique_name, filedata=filedata)
+    db.add(record)
+    db.commit()
+    db.refresh(record)
 
-        return {"message": "Processed and saved successfully", "id": record.id, "name": unique_name}
+    return {"message": "Processed and saved successfully", "id": record.id, "name": unique_name}
 
-    except subprocess.CalledProcessError as e:
-        return {"error in script": f"Blender execution failed (returncode {e.returncode})."}
-    except Exception as e:
-        return {"error": str(e)}
+def _transform_to_glb(name: str, db: Session):
+    base = safe_name(name)
+    glb_path = output_glb_path(base)
+    blend_input = os.path.join(OUTPUT_DIR, f"{base}.blend")
 
-def _transform_to_glb(name: str, db: Session) -> FileResponse | dict:
-    try:
-        base = safe_name(name)
-        glb_path = output_glb_path(base)
-        blend_input = os.path.join(OUTPUT_DIR, f"{base}.blend")
-
-        # Cache
-        if os.path.exists(glb_path):
-            return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
-
-        # Pull .blend from DB
-        rec = db.query(JointsFile).filter(JointsFile.name == name).first()
-        if not rec:
-            return {"error": f"No .blend stored under name '{name}'"}
-
-        with open(blend_input, "wb") as f:
-            f.write(rec.filedata)
-
-        # Run Blender transform script
-        run_blender_script(BLENDER_TRANSFORM_SCRIPT, base, blend_input)
-
-        # Serve result
-        if not os.path.exists(glb_path):
-            return {"error": f"Transform complete but {glb_path} not found"}
+    # cached?
+    if os.path.exists(glb_path):
         return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
-    except subprocess.CalledProcessError as e:
-        return {"error in script": f"Blender transform failed (returncode {e.returncode})."}
-    except Exception as e:
-        return {"error": str(e)}
+    # fetch .blend from DB
+    rec = db.query(JointsFile).filter(JointsFile.name == name).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail=f"No .blend stored under name '{name}'")
+
+    with open(blend_input, "wb") as f:
+        f.write(rec.filedata)
+
+    # run Blender transform
+    run_blender_transform(base, blend_input)
+
+    if not os.path.exists(glb_path):
+        raise HTTPException(status_code=500, detail=f"Transform completed but {glb_path} not found")
+
+    return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
 @app.get("/transform/rig/")
 def transform_rig_get(name: str, db: Session = Depends(get_db)):
@@ -203,7 +220,7 @@ def get_joints_files(db: Session = Depends(get_db)):
 def download_joints_file(file_id: int, db: Session = Depends(get_db)):
     rec = db.query(JointsFile).filter(JointsFile.id == file_id).first()
     if not rec:
-        return {"error": "File not found"}
+        raise HTTPException(status_code=404, detail="File not found")
     out = os.path.join("/tmp", f"{rec.name}.blend")
     with open(out, "wb") as f:
         f.write(rec.filedata)

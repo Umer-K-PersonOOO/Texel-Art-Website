@@ -202,7 +202,7 @@ class WM_CGT_MP_modal_detection_operator(bpy.types.Operator):
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
         logging.debug("FINISHED DETECTION")
-        return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 def register():

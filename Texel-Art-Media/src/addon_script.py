@@ -44,8 +44,10 @@ class BlenderMocapHandler():
 
     def _exit_blender(self):
         print("Closing Blender...")
-        sys.exit(0)
-        bpy.ops.wm.quit_blender()
+        try:
+            bpy.ops.wm.quit_blender()
+        except Exception:
+            import sys; sys.exit(0)
         return None  # Just in case, to stop the new timer too
 
     # Clear the scene at the start
@@ -54,8 +56,11 @@ class BlenderMocapHandler():
         # Ensure add-on is enabled
         addon_name = "BlendArMocap"
         self.output = None
-        if addon_name not in bpy.context.preferences.addons:
-            bpy.ops.preferences.addon_enable(module=addon_name)
+        try:
+            if addon_name not in bpy.context.preferences.addons:
+                bpy.ops.preferences.addon_enable(module=addon_name)
+        except Exception as e:
+            print(f"[WARN] Could not enable addon '{addon_name}': {e}. Continuing.")
         # Set the parameters
         # Remove the default cube
         bpy.ops.object.select_all(action='SELECT')
@@ -91,7 +96,10 @@ class BlenderMocapHandler():
             print("No custom collection name passed.")
             return -1
 
-        output_path = os.path.expanduser(os.path.join("~", "blender_tmp" ,f"{collection_name}.blend"))
+        import os
+        out_dir = os.getenv("OUTPUT_DIR", "/shared/out")
+        os.makedirs(out_dir, exist_ok=True)
+        output_path = os.path.join(out_dir, f"{collection_name}.blend")
         print("Output path:", output_path)
 
         # Deselect all, just for safety
@@ -130,19 +138,8 @@ else:
 print("Collection Name:", collection_name)
 print("Video Path:", video_path)
 
-# Run detection
 handler.detect(video_path)
 
-# time.sleep(20)
-# while not bpy.context.scene.cgtinker_mediapipe.modal_active:
-#     print("Waiting for detection to finish...")
-#     time.sleep(1)
-# while True:
-#     time.sleep(1)
-#     print(bpy.context.scene.cgtinker_mediapipe.modal_active)
-# bpy.ops.wm.quit_blender_operator()
-# print("FINISHED RUNNING -------------------------------")
-# output = handler.get_cgt_points()
 
 
 

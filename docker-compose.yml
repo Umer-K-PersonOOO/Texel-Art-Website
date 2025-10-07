@@ -4,11 +4,11 @@ services:
   api:
     build: .
     environment:
-      ADDON_MODULE: ${ADDON_MODULE:-BlendArMocap}
-      BLENDER_ADDON_SCRIPT: ${BLENDER_ADDON_SCRIPT:-/opt/addons/BlendArMocap/addon_script.py}
-      BLENDER_TRANSFORM_SCRIPT: ${BLENDER_TRANSFORM_SCRIPT:-/opt/addons/BlendArMocap/transform_addon_script.py}
-      UPLOAD_DIR: ${UPLOAD_DIR:-/shared/in}
-      OUTPUT_DIR: ${OUTPUT_DIR:-/shared/out}
+      ADDON_MODULE: BlendArMocap
+      MOCAP_SCRIPT: /root/.config/blender/4.1/scripts/addons/BlendArMocap/src/addon_script.py
+      TRANSFORM_SCRIPT: /root/.config/blender/4.1/scripts/addons/BlendArMocap/src/transform_addon_script.py
+      UPLOAD_DIR: /shared/in
+      OUTPUT_DIR: /shared/out
       HEADLESS: "1"
     volumes:
       - ./shared:/shared

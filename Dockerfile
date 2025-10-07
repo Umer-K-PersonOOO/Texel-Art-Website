@@ -10,6 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UPLOAD_DIR=/shared/in \
     OUTPUT_DIR=/shared/out \
     HEADLESS=1
+    ENV XDG_RUNTIME_DIR=/tmp
 
 # 1) System deps incl. python3-pip (needed for `pip3`)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,7 +32,7 @@ WORKDIR /app
 COPY backend /app/backend
 
 # 4) Stage add-on under folder name == module id, then install for Blender
-COPY Texel-Art-Media/src /opt/addons/${ADDON_MODULE}
+COPY Texel-Art-Media /opt/addons/${ADDON_MODULE}
 RUN mkdir -p /root/.config/blender/4.1/scripts/addons && \
     rm -rf /root/.config/blender/4.1/scripts/addons/${ADDON_MODULE} && \
     cp -r /opt/addons/${ADDON_MODULE} /root/.config/blender/4.1/scripts/addons/

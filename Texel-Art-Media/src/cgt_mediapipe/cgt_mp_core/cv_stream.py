@@ -68,7 +68,8 @@ class Stream:
         f = self.frame
         if self.is_movie:
             f = self.resize_movie_frame()
-        cv2.imshow(self.title, f)
+        # cv2.imshow(self.title, f)
+        # print("DRAWING FRAME")
 
     def exit_stream(self):
         if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -21,7 +21,7 @@ class MP_PG_Properties(bpy.types.PropertyGroup):
                     "around the irises by applying the Attention Mesh Model. "
                     "Default to false.")
 
-    # downloading during session seem inappropriate (therefore max 1)
+    # downloading during session seem inappropriate (therefor max 1)
     holistic_model_complexity: bpy.props.IntProperty(
         name="Model Complexity", default=1, min=0, max=1,
         description="Complexity of the pose landmark model: "
@@ -29,7 +29,7 @@ class MP_PG_Properties(bpy.types.PropertyGroup):
                     "latency generally go up with the model complexity. "
                     "Default to 1.")
 
-    # downloading during session seem inappropriate (therefore max 1)
+    # downloading during session seem inappropriate (therefor max 1)
     pose_model_complexity: bpy.props.IntProperty(
         name="Model Complexity", default=1, min=0, max=1,
         description="Complexity of the pose landmark model: "
