@@ -4,6 +4,9 @@ import time
 import os
 import sys
 
+rig_blend_path = os.getenv("RIG_BLEND_PATH", "/root/.config/blender/4.1/scripts/addons/BlendArMocap/assets/LetsTryThisOne3.blend")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
+
 # Parse command-line args after '--'
 args = sys.argv
 if "--" in args:
@@ -74,7 +77,7 @@ class BlenderMocapHandler():
         
         
         # Step 1: Append the rig object from the blend file
-        rig_blend_path = "/home/personooo/Desktop/LetsTryThisOne3.blend"
+        # rig_blend_path = "/home/personooo/Desktop/LetsTryThisOne3.blend"
 
         with bpy.data.libraries.load(rig_blend_path, link=False) as (data_from, data_to):
             data_to.objects = data_from.objects  # Import everything
@@ -188,15 +191,17 @@ class BlenderMocapHandler():
         bpy.ops.object.mode_set(mode='OBJECT')
 
         # 5. Export as GLB
-        output_dir = os.path.expanduser(os.path.join("~", "blender_tmp"))
-        os.makedirs(output_dir, exist_ok=True)
-        glb_path = os.path.join(output_dir, f"{export_name}.glb")
+        # output_dir = os.path.expanduser(os.path.join("~", "blender_tmp"))
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        glb_path = os.path.join(OUTPUT_DIR, f"{export_name}.glb")
 
         bpy.ops.export_scene.gltf(
             filepath=glb_path,
             export_format='GLB',
-            use_selection=False,  # Correct name
-            export_apply=True
+            use_selection=False,
+            export_apply=True,
+            export_animations=True,    # explicit: keep animation
+            export_skins=True          # explicit: keep skinning
         )
 
         print(f"GLB file exported to: {glb_path}")
@@ -262,4 +267,3 @@ handler.apply_animation(export_name, blend_input_path)
 # bpy.ops.wm.quit_blender_operator()
 # print("FINISHED RUNNING -------------------------------")
 # output = handler.get_cgt_points()
-

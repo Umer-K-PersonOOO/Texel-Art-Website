@@ -18,3 +18,6 @@ You may access other modules by using their public operators. Ensure to not weav
 If installation fails (mainly import's versions are uncompatable, change cgt_dependencies.py).
 
 If you are running the addon off your machine and want to see the output while running, uncomment line `# cv2.imshow(self.title, f)` in `cv_stream.py`
+
+## Docker Setup:
+mkdir -p shared/in shared/out shared/rigs

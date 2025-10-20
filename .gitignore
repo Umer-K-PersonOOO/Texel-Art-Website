@@ -1,1 +1,3 @@
 shared
+backend/mocap.db
+backend/app/__pycache__/

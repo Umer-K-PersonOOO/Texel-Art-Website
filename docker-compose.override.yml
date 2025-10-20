@@ -1,0 +1,26 @@
+# docker-compose.override.yml (dev only)
+services:
+  api:
+    # Mount your backend code so code edits don’t require a rebuild
+    volumes:
+      - ./backend:/app/backend:rw
+      # Mount your add-on so you can tweak it live without rebuilds
+      - ./Texel-Art-Media:/root/.config/blender/4.1/scripts/addons/BlendArMocap:rw
+      # Keep your shared IO as-is
+      - ./shared:/shared:rw
+      # Rig file (already present in your docker-compose.yml, but here for clarity)
+      - ./shared/rigs/LetsTryThisOne3.blend:/shared/rigs/LetsTryThisOne3.blend:ro
+
+    # Dev env tweaks (override/extend base)
+    environment:
+      BLENDER_TIMEOUT: "600" # faster feedback, fail earlier in dev
+      HEADLESS: "1"
+      RIG_BLEND_PATH: /shared/rigs/LetsTryThisOne3.blend
+
+    # Optionally replace the command with auto-reload for fast API edits
+    # (requires watchdog to be in backend requirements)
+    command: >
+      python3 -m uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
