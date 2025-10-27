@@ -1,269 +1,171 @@
-import bpy
-import json
-import time
-import os
-import sys
+# transform_addon_script.py
+import bpy, os, sys, pathlib
 
-rig_blend_path = os.getenv("RIG_BLEND_PATH", "/root/.config/blender/4.1/scripts/addons/BlendArMocap/assets/LetsTryThisOne3.blend")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
 
-# Parse command-line args after '--'
+# Args: -- <export_name> <blend_input_path> <rig_path>
 args = sys.argv
 if "--" in args:
-    idx = args.index("--")
-    export_name = args[idx + 1]
-    blend_input_path = args[idx + 2]
+    i = args.index("--")
+    export_name = args[i+1]
+    blend_input_path = args[i+2]
+    rig_path = args[i+3] if len(args) > i+3 else os.getenv("RIG_BLEND_PATH", "")
 else:
     export_name = "default_output"
-    blend_input_path = "/home/personooo/fallback.blend"
+    blend_input_path = "/tmp/fallback_mocap.blend"
+    rig_path = os.getenv("RIG_BLEND_PATH", "")
 
+if not rig_path or not os.path.exists(rig_path):
+    raise RuntimeError(f"Rig file missing or not found: {rig_path}")
 
-
-class BlenderMocapHandler():
-    def clear_scene(self):
-        """Manually removes all objects instead of resetting to factory settings."""
-        if bpy.context.object and bpy.context.object.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')  # Switch to object mode
-        bpy.ops.object.select_all(action='SELECT')  # Select all objects
-        bpy.ops.object.delete()  # Delete selected objects
-        for collection in bpy.data.collections:
-            bpy.data.collections.remove(collection)  # Remove all collections
-
-        # Ensure there's no lingering data
-        for block in bpy.data.objects:
-            bpy.data.objects.remove(block)
-        for block in bpy.data.meshes:
-            bpy.data.meshes.remove(block)
-        for block in bpy.data.materials:
-            bpy.data.materials.remove(block)
-        for block in bpy.data.textures:
-            bpy.data.textures.remove(block)
-        for block in bpy.data.images:
-            bpy.data.images.remove(block)
-        
-        bpy.ops.outliner.orphans_purge(do_recursive=True)
-        print("Scene cleared")
-        
-    def check_detection_status(self):
-        """Checks if the detection process has completed."""
-        if not bpy.context.scene.cgtinker_mediapipe.modal_active:
-            print("Detection complete")
-            print("FINISHED RUNNING -------------------------------")
-            self.get_cgt_points()
-            return None  # Stop the timer
-        return 0.5
-
-    # Clear the scene at the start
-    def __init__(self):
-        self.video_file_name = ""
-        # Ensure add-on is enabled
-        addon_name = "BlendArMocap"
-        self.output = None
-        if addon_name not in bpy.context.preferences.addons:
-            bpy.ops.preferences.addon_enable(module=addon_name)
-        # Set the parameters
-        # Remove the default cube
-        bpy.ops.object.select_all(action='SELECT')
-        bpy.ops.object.delete()
-        bpy.context.scene.cgtinker_mediapipe.detection_input_type = "movie"
-        self.clear_scene()
-    
-    def apply_animation(self, export_name, blend_input_path):
-        # to do: figure out how to get the animation to transfer
-        # container = bpy.data.collections.new("cgt_DRIVERS")
-        # pose_driver = bpy.data.collections.new("cgt_POSE")
-        # bpy.context.scene.collection.children.link(container)
-        # container.children.link(pose_driver)
-        
-        
-        # Step 1: Append the rig object from the blend file
-        # rig_blend_path = "/home/personooo/Desktop/LetsTryThisOne3.blend"
-
-        with bpy.data.libraries.load(rig_blend_path, link=False) as (data_from, data_to):
-            data_to.objects = data_from.objects  # Import everything
-
-        # Step 2: Link all imported objects to the current scene
-        imported_rig = None
-        linked_meshes = []
-
-        for obj in data_to.objects:
-            if obj:
-                bpy.context.collection.objects.link(obj)
-                # Identify the rig
-                if obj.name == "rig":
-                    imported_rig = obj
-
-        # Step 3: Auto-detect meshes parented to the rig
-        if imported_rig:
-            linked_meshes = [
-                obj for obj in bpy.data.objects
-                if obj.parent == imported_rig and obj.type in {"MESH"}
-            ]
-            print("Detected rig:", imported_rig.name)
-            print("Detected meshes:", [m.name for m in linked_meshes])
-        else:
-            print("❌ Rig not found!")
-
-
-        # Step 2: Append the 'cgt_DRIVERS' collection
-        blend_path =  blend_input_path # "/home/personooo/test.blend"
-        collection_name = "cgt_DRIVERS"
-
-        with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
-            if collection_name in data_from.collections:
-                data_to.collections.append(collection_name)
-
-        # Link imported collection to scene
-        for coll in data_to.collections:
-            bpy.context.scene.collection.children.link(coll)
-
-        # Step 3: Get reference to 'cgt_POSE' inside 'cgt_DRIVERS'
-        drivers_collection = bpy.data.collections.get("cgt_DRIVERS")
-        pose_driver = drivers_collection.children.get("cgt_POSE")
-
-        print("Drivers Collection:", drivers_collection)
-        print("Pose Driver:", pose_driver)
-
-        # Step 4: Run your operators
-        bpy.context.scene.cgtinker_mediapipe.enum_detection_type = 'POSE'
-        # bpy.ops.wm.cgt_feature_detection_operator('EXEC_DEFAULT')
-
-        # Set pose driver collection
-        bpy.context.scene.cgtinker_transfer.selected_driver_collection = pose_driver
-        # bpy.context.scene.cgtinker_transfer.transfer_types = armature_file
-        imported_rig = bpy.data.objects.get("rig")
-
-        if imported_rig:
-            bpy.context.scene.cgtinker_transfer.selected_rig = imported_rig
-            print("Selected Rig set to:", imported_rig)
-        else:
-            print("Rig not found!")
-
-        # Apply properties
-        bpy.ops.button.cgt_object_apply_properties()
-        
-        # 1. Set rig to Pose Mode and select all bones
-        imported_rig = bpy.data.objects.get("rig")
-        bpy.ops.object.select_all(action='DESELECT')
-        imported_rig.select_set(True)
-        bpy.context.view_layer.objects.active = imported_rig
-        bpy.context.view_layer.update()
-        bpy.ops.object.mode_set(mode='POSE')
-        bpy.ops.pose.select_all(action='SELECT')
-
-        # 2. Bake the action
-        bpy.ops.nla.bake(
-            frame_start=1,
-            frame_end=250,
-            only_selected=True,
-            visual_keying=True,
-            clear_constraints=True,
-            use_current_action=True,
-            bake_types={'POSE'}
-        )
-
-        # 3. Delete all drivers from all objects
-        def delete_collection_recursive(collection_name):
-            coll = bpy.data.collections.get(collection_name)
-            if not coll:
-                print(f"Collection '{collection_name}' not found.")
-                return
-
-            # Recursively delete all nested collections
-            def delete_contents(collection):
-                for obj in list(collection.objects):
-                    bpy.data.objects.remove(obj, do_unlink=True)
-                for child in list(collection.children):
-                    delete_contents(child)
-                    bpy.data.collections.remove(child)
-
-            delete_contents(coll)
-
-            # Finally delete the top-level collection
-            bpy.data.collections.remove(coll)
-            print(f"Deleted collection and all contents: {collection_name}")
-
-        # Call it
-        delete_collection_recursive("cgt_DRIVERS")
-
-
-        # 4. Return to Object Mode
+def clear_scene_hard():
+    if bpy.context.object and bpy.context.object.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False)
+    # purge data
+    for datablock_list in (
+        bpy.data.meshes, bpy.data.armatures, bpy.data.materials, bpy.data.images,
+        bpy.data.textures, bpy.data.collections, bpy.data.actions,
+    ):
+        for datablock in list(datablock_list):
+            try:
+                datablock.user_clear()
+                datablock_list.remove(datablock)
+            except Exception:
+                pass
+    bpy.ops.outliner.orphans_purge(do_recursive=True)
 
-        # 5. Export as GLB
-        # output_dir = os.path.expanduser(os.path.join("~", "blender_tmp"))
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        glb_path = os.path.join(OUTPUT_DIR, f"{export_name}.glb")
+def import_rig_any(path: str):
+    ext = pathlib.Path(path).suffix.lower()
+    before = set(bpy.data.objects)
+    if ext == ".blend":
+        with bpy.data.libraries.load(path, link=False) as (data_from, data_to):
+            # bring in objects & collections
+            data_to.objects = data_from.objects
+            data_to.collections = list(data_from.collections)
+        # link all imported objects (safe)
+        for obj in data_to.objects:
+            if obj and obj.name not in bpy.context.scene.objects:
+                try:
+                    bpy.context.collection.objects.link(obj)
+                except Exception:
+                    pass
+        for coll in data_to.collections:
+            try:
+                bpy.context.scene.collection.children.link(coll)
+            except Exception:
+                pass
+    elif ext == ".fbx":
+        bpy.ops.import_scene.fbx(filepath=path, automatic_bone_orientation=True)
+    elif ext == ".obj":
+        # Newer Blender uses wm.obj_import; older uses import_scene.obj
+        try:
+            bpy.ops.wm.obj_import(filepath=path)
+        except AttributeError:
+            bpy.ops.import_scene.obj(filepath=path)
+    else:
+        raise RuntimeError(f"Unsupported rig format: {ext}")
 
-        bpy.ops.export_scene.gltf(
-            filepath=glb_path,
-            export_format='GLB',
-            use_selection=False,
-            export_apply=True,
-            export_animations=True,    # explicit: keep animation
-            export_skins=True          # explicit: keep skinning
-        )
+    after = set(bpy.data.objects)
+    new_objs = [o for o in after - before if isinstance(o, bpy.types.Object)]
+    return new_objs
 
-        print(f"GLB file exported to: {glb_path}")
-        
-        bpy.ops.wm.quit_blender()
+def pick_armature():
+    """Choose the best armature: prefer Rigify-looking rigs, then common names, else first armature."""
+    arms = [o for o in bpy.data.objects if o.type == 'ARMATURE']
+    if not arms:
+        return None
+    # Heuristic 1: name hints
+    by_name = [a for a in arms if a.name.lower() in {"rig", "armature"} or "rigify" in a.name.lower()]
+    if by_name:
+        return by_name[0]
+    # Heuristic 2: bone naming typical to rigify (DEF-, ORG-, MCH-, CTRL-)
+    def rigify_score(a):
+        names = [b.name for b in a.data.bones]
+        prefixes = sum(n.startswith(("DEF-","ORG-","MCH-","CTRL-")) for n in names)
+        return prefixes
+    best = max(arms, key=rigify_score)
+    return best
 
-        
-        # armature_file = "/home/personooo/rigs.blend"
-        # bpy.ops.wm.open_mainfile(filepath=armature_file)
-        
-        # blend_path = "/home/personooo/test.blend"
-        # collection_name = "cgt_DRIVERS"
+def append_drivers_collection(blend_path: str):
+    with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
+        if "cgt_DRIVERS" in data_from.collections:
+            data_to.collections = ["cgt_DRIVERS"]
+        else:
+            raise RuntimeError("cgt_DRIVERS collection not found in mocap .blend")
+    for coll in data_to.collections:
+        bpy.context.scene.collection.children.link(coll)
+    drivers = bpy.data.collections.get("cgt_DRIVERS")
+    pose = drivers.children.get("cgt_POSE") if drivers else None
+    return drivers, pose
 
-        # with bpy.data.libraries.load(blend_path, link=False) as (data_from, data_to):
-        #     if collection_name in data_from.collections:
-        #         data_to.collections.append(collection_name)
-            
+def bake_pose_action(rig_obj):
+    bpy.ops.object.select_all(action='DESELECT')
+    rig_obj.select_set(True)
+    bpy.context.view_layer.objects.active = rig_obj
+    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.pose.select_all(action='SELECT')
+    bpy.ops.nla.bake(
+        frame_start=1, frame_end=250,
+        only_selected=True, visual_keying=True,
+        clear_constraints=True, use_current_action=True,
+        bake_types={'POSE'}
+    )
+    bpy.ops.object.mode_set(mode='OBJECT')
 
-        # # Link to scene
-        # for coll in data_to.collections:
-        #     bpy.context.scene.collection.children.link(coll)
-        
+def delete_collection_recursive(name: str):
+    coll = bpy.data.collections.get(name)
+    if not coll:
+        return
+    def purge(c):
+        for obj in list(c.objects):
+            bpy.data.objects.remove(obj, do_unlink=True)
+        for child in list(c.children):
+            purge(child)
+            bpy.data.collections.remove(child)
+    purge(coll)
+    bpy.data.collections.remove(coll)
 
-        # # bpy.ops.import_scene.fbx(filepath=point_file)
-        # # imported_objects = bpy.context.selected_objects
-        # # for obj in imported_objects:
-        # #     # Unlink from all other collections
-        # #     for coll in obj.users_collection:
-        # #         coll.objects.unlink(obj)
-        # #     # Link to target collection
-        # #     pose_driver.objects.link(obj)
-        # # bpy.context.view_layer.objects.active = bpy.data.objects["cgt_POSE"]
-        
-            
-        # bpy.context.scene.cgtinker_mediapipe.enum_detection_type = 'POSE'
-        # bpy.ops.wm.cgt_feature_detection_operator('EXEC_DEFAULT')
-        # bpy.context.scene.collection.children.link("cgt_DRIVERS")
-        # print("Drivers: ", bpy.data.collections.get('cgt_DRIVERS'))
-        
-        # # bpy.context.scene.cgtinker_transfer.selected_driver_collection = pose_driver
-        # # bpy.context.scene.cgtinker_transfer.transfer_types = armature_file
-        # # bpy.ops.button.cgt_object_apply_properties()
+# -------- Pipeline --------
+clear_scene_hard()
 
-        # # to do: fix actual armature file (needs to be rigified)
-        # # to do: precondition file so it actually works
-        
-        
+# 1) Import the rig (blend/fbx/obj)
+import_rig_any(rig_path)
 
+# 2) Validate & pick an armature
+rig_obj = pick_armature()
+if not rig_obj:
+    raise RuntimeError("No armature found in rig file")
 
-        
-    
-        
-    
-handler = BlenderMocapHandler()
-handler.apply_animation(export_name, blend_input_path)
-# time.sleep(20)
-# while not bpy.context.scene.cgtinker_mediapipe.modal_active:
-#     print("Waiting for detection to finish...")
-#     time.sleep(1)
-# while True:
-#     time.sleep(1)
-#     print(bpy.context.scene.cgtinker_mediapipe.modal_active)
-# bpy.ops.wm.quit_blender_operator()
-# print("FINISHED RUNNING -------------------------------")
-# output = handler.get_cgt_points()
+print(f"Selected Rig set to: {rig_obj!r}")
+
+# 3) Bring in drivers from the mocap .blend
+drivers, pose_driver = append_drivers_collection(blend_input_path)
+print("Drivers Collection:", drivers, "Pose Driver:", pose_driver)
+
+# 4) Wire up addon settings (as you had)
+bpy.context.scene.cgtinker_mediapipe.enum_detection_type = 'POSE'
+bpy.context.scene.cgtinker_transfer.selected_driver_collection = pose_driver
+bpy.context.scene.cgtinker_transfer.selected_rig = rig_obj
+bpy.ops.button.cgt_object_apply_properties()
+
+# 5) Bake pose on the detected rig
+bake_pose_action(rig_obj)
+
+# 6) Remove driver collections
+delete_collection_recursive("cgt_DRIVERS")
+
+# 7) Export GLB
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+glb_path = os.path.join(OUTPUT_DIR, f"{export_name}.glb")
+bpy.ops.export_scene.gltf(
+    filepath=glb_path,
+    export_format='GLB',
+    use_selection=False,
+    export_apply=True,
+    export_animations=True,
+    export_skins=True
+)
+print(f"GLB file exported to: {glb_path}")
+bpy.ops.wm.quit_blender()

@@ -6,6 +6,8 @@ from sqlalchemy import Column, Integer, String, LargeBinary, UniqueConstraint, c
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from datetime import datetime
 import os, subprocess, shutil, pathlib, sys, shlex, time, signal
+from typing import Optional
+from fastapi import Body
 
 # Configuration
 ADDON_MODULE = os.getenv("ADDON_MODULE", "BlendArMocap")
@@ -13,6 +15,9 @@ BLENDER_BIN = shutil.which("blender") or "/usr/local/bin/blender"
 XVFB_RUN = shutil.which("xvfb-run")
 HEADLESS = os.getenv("HEADLESS", "1") == "1"
 XVFB_SCREEN = os.getenv("XVFB_WHD", "1920x1080x24")
+ALLOWED_RIG_EXTS = {".blend", ".fbx", ".obj"}
+RIGS_DIR = os.getenv("RIGS_DIR", "/shared/rigs")
+os.makedirs(RIGS_DIR, exist_ok=True)
 
 # NOTE: default to the installed add-on inside Blender's addons dir
 MOCAP_SCRIPT = os.getenv(
@@ -84,6 +89,16 @@ def generate_unique_name(db: Session, base_name: str) -> str:
     return unique_name
 
 # Blender runners (robust, with Xvfb)
+def _save_rig_upload(file: UploadFile) -> str:
+    ext = pathlib.Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_RIG_EXTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported rig format: {ext}")
+    safe = safe_name(file.filename) + ext
+    dest = os.path.join(RIGS_DIR, safe)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return dest
+
 def _blender_cmd(extra: list[str]) -> list[str]:
     base = [BLENDER_BIN, "--factory-startup", "--addons", ADDON_MODULE]
     cmd = base + extra
@@ -203,13 +218,52 @@ def _transform_to_glb(name: str, db: Session):
 
     return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
-@app.get("/transform/rig/")
-def transform_rig_get(name: str, db: Session = Depends(get_db)):
-    return _transform_to_glb(name, db)
-
 @app.post("/transform/rig/")
-def transform_rig_post(name: str = Form(...), db: Session = Depends(get_db)):
-    return _transform_to_glb(name, db)
+def transform_rig_post(
+    name: str = Form(...),
+    rig_ref: Optional[str] = Form(None),
+    rig_file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+):
+    # resolve rig path (upload or reference)
+    rig_path = None
+    if rig_file is not None:
+        rig_path = _save_rig_upload(rig_file)
+    elif rig_ref:
+        cand = os.path.join(RIGS_DIR, os.path.basename(rig_ref))
+        if not os.path.exists(cand):
+            raise HTTPException(status_code=404, detail=f"rig_ref not found: {rig_ref}")
+        rig_path = cand
+
+    if rig_path is None:
+        # fall back to env RIG_BLEND_PATH (backwards compatible)
+        rig_path = os.getenv("RIG_BLEND_PATH")
+        if not rig_path or not os.path.exists(rig_path):
+            raise HTTPException(status_code=400, detail="No rig provided. Upload rig_file or pass rig_ref.")
+
+    # write the .blend from DB to OUTPUT_DIR/base.blend (as you already do)
+    base = safe_name(name)
+    glb_path = output_glb_path(base)
+    blend_input = os.path.join(OUTPUT_DIR, f"{base}.blend")
+
+    # cache?
+    if os.path.exists(glb_path):
+        return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
+
+    rec = db.query(JointsFile).filter(JointsFile.name == name).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail=f"No .blend stored under name '{name}'")
+    with open(blend_input, "wb") as f:
+        f.write(rec.filedata)
+
+    # run Blender transform with the rig path
+    cmd = _blender_cmd(["--python", TRANSFORM_SCRIPT, "--", base, blend_input, rig_path])
+    _run(cmd)
+
+    if not os.path.exists(glb_path):
+        raise HTTPException(status_code=500, detail=f"Transform completed but {glb_path} not found")
+    return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
+
 
 @app.get("/joints/")
 def get_joints_files(db: Session = Depends(get_db)):
@@ -225,3 +279,9 @@ def download_joints_file(file_id: int, db: Session = Depends(get_db)):
     with open(out, "wb") as f:
         f.write(rec.filedata)
     return {"message": "File restored", "filepath": out}
+
+@app.post("/rigs/upload")
+async def upload_rig(file: UploadFile = File(...)):
+    path = _save_rig_upload(file)
+    # optional: cheap validation (just existence); real validation happens in Blender
+    return {"ok": True, "rig_ref": os.path.basename(path), "path": path}

@@ -11,9 +11,11 @@ services:
       OUTPUT_DIR: /shared/out
       HEADLESS: "1"
       RIG_BLEND_PATH: /shared/rigs/LetsTryThisOne3.blend
+      RIGS_DIR: /shared/rig_uploads
     volumes:
       - ./shared:/shared
-      - ./shared/rigs/LetsTryThisOne3.blend:/shared/rigs/LetsTryThisOne3.blend:ro
+      - ./shared/rig_uploads:/shared/rig_uploads 
+      - ./shared/rigs/LetsTryThisOne3.blend:/shared/rigs/LetsTryThisOne3.blend
 
     ports:
       - "8000:8000"
