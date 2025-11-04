@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import Scene from "./Scene";
 import GenerateFromVideo from "./components/GenerateFromVideo";
 import GLBGrid from "./components/GLBGrid";
+import Scene from "./Scene";
 
 const App: React.FC = () => {
   const [currentGLBUrl, setCurrentGLBUrl] = useState<string>("/models/base.glb");
