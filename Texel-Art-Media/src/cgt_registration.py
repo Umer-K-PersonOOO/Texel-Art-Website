@@ -5,6 +5,7 @@ from .cgt_core.cgt_interface import cgt_core_registration
 from .cgt_mediapipe import cgt_mp_registration
 from .cgt_transfer import cgt_transfer_registration
 from .cgt_freemocap import fm_registration
+from . import cgt_live_mirror_registration
 
 
 modules = [
@@ -12,6 +13,7 @@ modules = [
     cgt_mp_registration,
     fm_registration,
     cgt_transfer_registration,
+    cgt_live_mirror_registration,
 ]
 
 

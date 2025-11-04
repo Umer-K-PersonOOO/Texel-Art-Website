@@ -17,7 +17,7 @@ Copyright (C) Denys Hsu, cgtinker, cgtinker.com, hello@cgtinker.com
 
 
 bl_info = {
-    "name":        "BlendArMocap",
+    "name":        "Live Mirror",
     "description": "Mediapipe and Freemocap animation transfer implementation for Blender 3.0+.",
     "author":      "cgtinker",
     "version":     (1, 6, 0),

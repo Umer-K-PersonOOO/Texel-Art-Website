@@ -1,3 +1,5 @@
 shared
 backend/mocap.db
 backend/app/__pycache__/
+*.pyc
+my-3d-app/node_modules/
