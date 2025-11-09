@@ -2,13 +2,13 @@ import {
   Html,
   OrbitControls,
   Stats,
-  useProgress,
   useAnimations,
+  useProgress,
 } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
-import React, { Suspense, useRef, useEffect } from "react";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import React, { Suspense, useEffect, useRef } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 function Loader() {
   const { progress } = useProgress();
@@ -49,7 +49,7 @@ interface SceneProps {
 
 const Scene: React.FC<SceneProps> = ({ url }) => {
   return (
-    <Canvas camera={{ position: [1.3, 1.5, 1.9] }} shadows>
+    <Canvas camera={{ position: [1.3, 1.5, 1.9] }} shadows>  
       <Suspense fallback={<Loader />}>
         <directionalLight
           position={[-1.3, 6.0, 4.4]}
@@ -57,7 +57,7 @@ const Scene: React.FC<SceneProps> = ({ url }) => {
           intensity={Math.PI}
         />
         <ModelWithAnimation url={url} />
-        <OrbitControls target={[0, 0.5, 0]} />
+        <OrbitControls target={[0, 1, 0]} />
         <axesHelper args={[5]} />
         <Stats />
       </Suspense>

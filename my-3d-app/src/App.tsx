@@ -19,7 +19,7 @@ const App: React.FC = () => {
 
         <div className="flex w-1/2 bg-slate-600 h-[90vh]">
           <div className="flex-col">
-            <div className="h-1/2 w-[50vw]">
+            <div className="h-1/2 w-[50vw] border-4 border-solid border-black">
               <Scene url={currentGLBUrl} />
             </div>
             <div className="h-1/2 w-[50vw]">
