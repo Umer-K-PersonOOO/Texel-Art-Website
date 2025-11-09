@@ -301,7 +301,7 @@ def download_joints_file(file_id: int, db: Session = Depends(get_db)):
 @app.post("/rigs/upload")
 async def upload_rig(file: UploadFile = File(...)):
     """
-    Purpose: Upload a rig file (.blend, .fbx, .obj) for later use
+    Purpose: Upload a rig file (.blend) for later use
     """
     path = _save_rig_upload(file)
     # optional: cheap validation (just existence); real validation happens in Blender
