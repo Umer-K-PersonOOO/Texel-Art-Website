@@ -8,6 +8,7 @@ from datetime import datetime
 import os, subprocess, shutil, pathlib, sys, shlex, time, signal
 from typing import Optional
 from fastapi import Body
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configuration
 ADDON_MODULE = os.getenv("ADDON_MODULE", "BlendArMocap")
@@ -18,6 +19,13 @@ XVFB_SCREEN = os.getenv("XVFB_WHD", "1920x1080x24")
 ALLOWED_RIG_EXTS = {".blend", ".fbx", ".obj"}
 RIGS_DIR = os.getenv("RIGS_DIR", "/shared/rigs")
 os.makedirs(RIGS_DIR, exist_ok=True)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # front-end dev URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # NOTE: default to the installed add-on inside Blender's addons dir
 MOCAP_SCRIPT = os.getenv(
