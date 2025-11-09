@@ -8,9 +8,10 @@ interface JointFile {
 
 interface GLBGridProps {
   onSelectGLB: (url: string) => void;
+  refreshTrigger: number; // increment to trigger refetch
 }
 
-const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB }) => {
+const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB, refreshTrigger }) => {
   const [files, setFiles] = useState<JointFile[]>([]);
 
   useEffect(() => {
@@ -25,7 +26,7 @@ const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB }) => {
     };
 
     fetchFiles();
-  }, []);
+  }, [refreshTrigger]);
 
   return (
     <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">

@@ -2,20 +2,24 @@ import React, { useState, ChangeEvent, FormEvent } from "react";
 
 interface GenerateFromVideoProps {
   setGLBUrl: (url: string) => void;
+  triggerGLBRefresh: () => void;
 }
 
-const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
+const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl, triggerGLBRefresh }) => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [animationName, setAnimationName] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [status, setStatus] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const isValidName = (name: string) => /^[a-zA-Z0-9_-]+$/.test(name);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading) return; // prevent spam submissions
     setError("");
     setStatus("");
+    setLoading(true);
 
     if (!videoFile) return setError("Please upload a video file.");
     const ext = videoFile.name.split(".").pop()?.toLowerCase();
@@ -28,7 +32,7 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
     formData.append("name", animationName);
 
     try {
-      const res = await fetch("https://fb11-128-62-106-72.ngrok-free.app/process/video/", {
+      const res = await fetch("http://127.0.0.1:8000/process/video/", {
         method: "POST",
         body: formData,
       });
@@ -36,15 +40,16 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
 
       if (res.ok) {
         setStatus(`✅ Animation saved as: ${data.name}`);
-        
-        // Now call transform/rig
-        const rigUrl = `https://fb11-128-62-106-72.ngrok-free.app/transform/rig?name=${data.name}`;
+        const rigUrl = `http://127.0.0.1:8000/transform/rig?name=${data.name}`;
         setGLBUrl(rigUrl);
+        triggerGLBRefresh();
       } else {
         setError(data.error || "Something went wrong.");
       }
     } catch {
       setError("Upload failed. Server error.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,11 +76,7 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
           <input
             type="file"
             accept=".mp4,.mov"
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              if (e.target.files && e.target.files[0]) {
-                setVideoFile(e.target.files[0]);
-              }
-            }}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => e.target.files && setVideoFile(e.target.files[0])}
             className="w-full bg-gray-700 border border-gray-600 p-2 rounded-md text-white"
             required
           />
@@ -83,9 +84,12 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
 
         <button
           type="submit"
-          className="w-full bg-blue-600 hover:bg-blue-700 transition-colors py-2 rounded-md font-medium"
+          disabled={loading} // disable button while loading
+          className={`w-full py-2 rounded-md font-medium transition-colors ${
+            loading ? "bg-gray-500 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
-          Submit
+          {loading ? "Processing..." : "Submit"}
         </button>
 
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
