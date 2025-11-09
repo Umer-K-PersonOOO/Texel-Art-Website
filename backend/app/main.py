@@ -226,6 +226,16 @@ def _transform_to_glb(name: str, db: Session):
 
     return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
+@app.get("/transform/rig")
+def transform_rig_get(name: str, db: Session = Depends(get_db)):
+    """
+    Gets .glb file using rig
+
+    For ease of implementation.
+    NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
+    """
+    return _transform_to_glb(name, db)
+
 @app.post("/transform/rig/")
 def transform_rig_post(
     name: str = Form(...),

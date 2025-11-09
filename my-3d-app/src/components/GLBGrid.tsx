@@ -30,7 +30,7 @@ const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB }) => {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
       {files.map((file) => {
-        const fileUrl = `http://127.0.0.1:8000/transform/rig?name=${file.name}`; // change this.
+        const fileUrl = `http://127.0.0.1:8000/transform/rig?name=${file.name}`;
         return (
           <div
             key={file.id}
