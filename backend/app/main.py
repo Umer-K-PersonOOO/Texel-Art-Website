@@ -19,13 +19,6 @@ XVFB_SCREEN = os.getenv("XVFB_WHD", "1920x1080x24")
 ALLOWED_RIG_EXTS = {".blend", ".fbx", ".obj"}
 RIGS_DIR = os.getenv("RIGS_DIR", "/shared/rigs")
 os.makedirs(RIGS_DIR, exist_ok=True)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # front-end dev URLs
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # NOTE: default to the installed add-on inside Blender's addons dir
 MOCAP_SCRIPT = os.getenv(
@@ -175,12 +168,14 @@ async def process_video(
     """
     Purpose: Upload and process a video into a .blend file (stored in DB)
     """
+    print(f"[DEBUG] Received file: {file.filename}, animation name: {name}")
     # store upload
     original = os.path.basename(file.filename)
     safe_base = safe_name(original)
     upload_path = os.path.join(UPLOAD_DIR, original)
     with open(upload_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+    print(f"[DEBUG] File saved to: {upload_path}")
 
     # collection/output basename
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -188,6 +183,7 @@ async def process_video(
 
     # run Blender
     run_blender_mocap(collection_name, upload_path)
+    print(f"[DEBUG] Blender mocap finished for {name}")
 
     # find produced .blend
     blend_path = find_output_blend(collection_name)

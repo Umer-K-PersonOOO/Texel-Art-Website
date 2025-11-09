@@ -1,4 +1,4 @@
-import React, { ChangeEvent, FormEvent, useState } from "react";
+import React, { useState, ChangeEvent, FormEvent } from "react";
 
 interface GenerateFromVideoProps {
   setGLBUrl: (url: string) => void;
@@ -29,8 +29,8 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl }) => {
 
     try {
       const res = await fetch("https://fb11-128-62-106-72.ngrok-free.app/process/video/", {
-          method: "POST",
-          body: formData,
+        method: "POST",
+        body: formData,
       });
       const data = await res.json();
 
