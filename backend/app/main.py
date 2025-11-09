@@ -149,9 +149,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def read_root():
+    """
+    Purpose: Health Check
+    """
     return {"message": "Hello, World!"}
+
 
 @app.post("/process/video/")
 async def process_video(
@@ -159,6 +164,9 @@ async def process_video(
     name: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """
+    Purpose: Upload and process a video into a .blend file (stored in DB)
+    """
     # store upload
     original = os.path.basename(file.filename)
     safe_base = safe_name(original)
@@ -225,6 +233,9 @@ def transform_rig_post(
     rig_file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
+    """
+    Purpose: Transform an existing .blend (from DB) into .glb using a rig
+    """
     # resolve rig path (upload or reference)
     rig_path = None
     if rig_file is not None:
@@ -267,11 +278,17 @@ def transform_rig_post(
 
 @app.get("/joints/")
 def get_joints_files(db: Session = Depends(get_db)):
+    """
+    Purpose: Access database: list all processed joint files in DB
+    """
     files = db.query(JointsFile).all()
     return [{"id": f.id, "name": f.name} for f in files]
 
 @app.get("/joints/{file_id}")
 def download_joints_file(file_id: int, db: Session = Depends(get_db)):
+    """
+    Purpose: Retrieve a specific .blend file from DB
+    """
     rec = db.query(JointsFile).filter(JointsFile.id == file_id).first()
     if not rec:
         raise HTTPException(status_code=404, detail="File not found")
@@ -280,8 +297,12 @@ def download_joints_file(file_id: int, db: Session = Depends(get_db)):
         f.write(rec.filedata)
     return {"message": "File restored", "filepath": out}
 
+
 @app.post("/rigs/upload")
 async def upload_rig(file: UploadFile = File(...)):
+    """
+    Purpose: Upload a rig file (.blend, .fbx, .obj) for later use
+    """
     path = _save_rig_upload(file)
     # optional: cheap validation (just existence); real validation happens in Blender
     return {"ok": True, "rig_ref": os.path.basename(path), "path": path}
