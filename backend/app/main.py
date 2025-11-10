@@ -1,7 +1,7 @@
 # backend/app/main.py
 from fastapi import FastAPI, UploadFile, HTTPException, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import Column, Integer, String, LargeBinary, UniqueConstraint, create_engine, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from datetime import datetime
@@ -9,6 +9,7 @@ import os, subprocess, shutil, pathlib, sys, shlex, time, signal
 from typing import Optional
 from fastapi import Body
 from fastapi.middleware.cors import CORSMiddleware
+from io import BytesIO
 
 # Configuration
 ADDON_MODULE = os.getenv("ADDON_MODULE", "BlendArMocap")
@@ -254,6 +255,21 @@ def transform_rig_get(id: int, name: str, db: Session = Depends(get_db)):
     NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
     """
     return _transform_to_glb(id, name, db)
+
+@app.get("/video/{file_id}")
+def get_video(file_id: int, db: Session = Depends(get_db)):
+    entry = db.query(JointsFile).filter(JointsFile.id == file_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    # Detect MIME type based on file extension
+    ext = pathlib.Path(entry.name).suffix.lower()
+    if ext == ".mov":
+        mime = "video/quicktime"
+    else:
+        mime = "video/mp4"
+
+    return StreamingResponse(BytesIO(entry.videodata), media_type=mime)
 
 @app.post("/transform/rig/")
 def transform_rig_post(
