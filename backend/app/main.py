@@ -2,7 +2,7 @@
 from fastapi import FastAPI, UploadFile, HTTPException, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlalchemy import Column, Integer, String, LargeBinary, UniqueConstraint, create_engine
+from sqlalchemy import Column, Integer, String, LargeBinary, UniqueConstraint, create_engine, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from datetime import datetime
 import os, subprocess, shutil, pathlib, sys, shlex, time, signal
@@ -56,7 +56,9 @@ class JointsFile(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     filedata = Column(LargeBinary)
+    videodata = Column(LargeBinary)
     __table_args__ = (UniqueConstraint('name', name='unique_name'),)
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -150,7 +152,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 def read_root():
     """
@@ -167,14 +168,20 @@ async def process_video(
 ):
     """
     Purpose: Upload and process a video into a .blend file (stored in DB)
+    Only accepts .mp4 and .mov files
     """
+    if file.content_type not in ["video/mp4", "video/quicktime"]:
+        raise HTTPException(status_code=400, detail="Only MP4 and MOV videos are supported")
+    
     print(f"[DEBUG] Received file: {file.filename}, animation name: {name}")
+
     # store upload
     original = os.path.basename(file.filename)
     safe_base = safe_name(original)
     upload_path = os.path.join(UPLOAD_DIR, original)
     with open(upload_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+    
     print(f"[DEBUG] File saved to: {upload_path}")
 
     # collection/output basename
@@ -183,8 +190,9 @@ async def process_video(
 
     # run Blender
     run_blender_mocap(collection_name, upload_path)
+    
     print(f"[DEBUG] Blender mocap finished for {name}")
-
+    
     # find produced .blend
     blend_path = find_output_blend(collection_name)
     if not blend_path:
@@ -197,15 +205,22 @@ async def process_video(
     with open(blend_path, "rb") as f:
         filedata = f.read()
 
+    videodata = await file.read()
+
     unique_name = generate_unique_name(db, name)
-    record = JointsFile(name=unique_name, filedata=filedata)
+    record = JointsFile(
+        name=unique_name, 
+        filedata=filedata, 
+        videodata=videodata
+    )
+
     db.add(record)
     db.commit()
     db.refresh(record)
 
     return {"message": "Processed and saved successfully", "id": record.id, "name": unique_name}
 
-def _transform_to_glb(name: str, db: Session):
+def _transform_to_glb(id: int, name: str, db: Session):
     base = safe_name(name)
     glb_path = output_glb_path(base)
     blend_input = os.path.join(OUTPUT_DIR, f"{base}.blend")
@@ -215,7 +230,7 @@ def _transform_to_glb(name: str, db: Session):
         return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
     # fetch .blend from DB
-    rec = db.query(JointsFile).filter(JointsFile.name == name).first()
+    rec = db.query(JointsFile).filter(JointsFile.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail=f"No .blend stored under name '{name}'")
 
@@ -231,14 +246,14 @@ def _transform_to_glb(name: str, db: Session):
     return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
 @app.get("/transform/rig")
-def transform_rig_get(name: str, db: Session = Depends(get_db)):
+def transform_rig_get(id: int, name: str, db: Session = Depends(get_db)):
     """
     Gets .glb file using rig
 
     For ease of implementation.
     NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
     """
-    return _transform_to_glb(name, db)
+    return _transform_to_glb(id, name, db)
 
 @app.post("/transform/rig/")
 def transform_rig_post(
@@ -310,7 +325,6 @@ def download_joints_file(file_id: int, db: Session = Depends(get_db)):
     with open(out, "wb") as f:
         f.write(rec.filedata)
     return {"message": "File restored", "filepath": out}
-
 
 @app.post("/rigs/upload")
 async def upload_rig(file: UploadFile = File(...)):

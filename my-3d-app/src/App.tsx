@@ -5,6 +5,9 @@ import Scene from "./Scene";
 
 const App: React.FC = () => {
   const [currentGLBUrl, setCurrentGLBUrl] = useState<string>("/models/base.glb");
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  const triggerRefresh = () => setRefreshCounter(prev => prev + 1);
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white min-h-screen">
@@ -12,9 +15,9 @@ const App: React.FC = () => {
         <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-teal-300 bg-clip-text text-transparent">
           Texel Art Animation Maker
         </h1>
-        <p className="text-gray-400 mt-1 text-sm">
+        {/* <p className="text-gray-400 mt-1 text-sm">
           Upload videos, view animations, and generate 3D scenes.
-        </p>
+        </p> */}
       </header>
 
       <main className="flex flex-col md:flex-row">

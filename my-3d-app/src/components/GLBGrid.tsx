@@ -31,7 +31,7 @@ const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB, refreshTrigger }) => {
   return (
     <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
       {files.map((file) => {
-        const fileUrl = `http://127.0.0.1:8000/transform/rig?name=${file.name}`;
+        const fileUrl = `http://127.0.0.1:8000/transform/rig?id=${file.id}&name=${file.name}`;
         return (
           <div
             key={file.id}
