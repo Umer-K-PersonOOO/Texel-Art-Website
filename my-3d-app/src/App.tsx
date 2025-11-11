@@ -32,11 +32,13 @@ const App: React.FC = () => {
         <section className="md:w-1/2 flex flex-col bg-gray-900 p-4 space-y-4">
           <div className="flex-1 flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-gray-800 rounded-2xl shadow-lg p-3">
-              {currentVideoUrl && (
-                <video>
-                  <source src={currentVideoUrl} type="video/mp4"/>
-                </video>
-              )}
+                <div style={{ maxHeight: '200px' }}>
+                  {currentVideoUrl && (
+                    <video autoPlay loop>
+                      <source src={currentVideoUrl} type="video/mp4"/>
+                    </video>
+                  )}
+                </div>
               <div><Scene url={currentGLBUrl} /></div>
             </div>
           </div>
