@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { ChangeEvent, FormEvent, useState } from "react";
 
 interface GenerateFromVideoProps {
   setGLBUrl: (url: string) => void;
@@ -40,7 +40,7 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl, trigge
 
       if (res.ok) {
         setStatus(`✅ Animation saved as: ${data.name}`);
-        const rigUrl = `http://127.0.0.1:8000/transform/rig?name=${data.name}`;
+        const rigUrl = `http://127.0.0.1:8000/transform/rig?id=${data.id}&name=${data.name}`;
         setGLBUrl(rigUrl);
         triggerGLBRefresh();
       } else {

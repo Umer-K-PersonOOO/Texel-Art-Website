@@ -176,12 +176,14 @@ async def process_video(
     
     print(f"[DEBUG] Received file: {file.filename}, animation name: {name}")
 
+    videodata = await file.read()
+
     # store upload
     original = os.path.basename(file.filename)
     safe_base = safe_name(original)
     upload_path = os.path.join(UPLOAD_DIR, original)
     with open(upload_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(videodata)
     
     print(f"[DEBUG] File saved to: {upload_path}")
 
@@ -205,8 +207,6 @@ async def process_video(
     # save to DB with unique logical name
     with open(blend_path, "rb") as f:
         filedata = f.read()
-
-    videodata = await file.read()
 
     unique_name = generate_unique_name(db, name)
     record = JointsFile(
