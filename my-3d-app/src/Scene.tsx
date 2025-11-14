@@ -17,6 +17,7 @@ function Loader() {
 
 interface ModelWithAnimationProps {
   url: string;
+  onReady?: () => void;
 }
 
 function ModelWithAnimation({ url }: ModelWithAnimationProps) {
@@ -25,14 +26,13 @@ function ModelWithAnimation({ url }: ModelWithAnimationProps) {
   const { animations } = gltf;
   const { actions } = useAnimations(animations, modelRef);
 
-  console.log("Loaded GLB from:", url);
-  console.log("Animations:", animations);
-  console.log("Model Scene:", gltf.scene);
+  // console.log("Loaded GLB from:", url);
+  // console.log("Animations:", animations);
+  // console.log("Model Scene:", gltf.scene);
 
   useEffect(() => {
     if (actions && animations.length > 0) {
       const actionName = animations[0].name;
-      console.log("Playing animation:", actionName);
       actions[actionName]?.reset().play();
     } else {
       console.warn("No animations found for:", url);
@@ -49,7 +49,7 @@ interface SceneProps {
 
 const Scene: React.FC<SceneProps> = ({ url }) => {
   return (
-    <Canvas camera={{ position: [1.3, 1.5, 1.9] }} shadows>  
+    <Canvas camera={{ position: [1.3, 1.5, 1.9] }} shadows>
       <Suspense fallback={<Loader />}>
         <directionalLight
           position={[-1.3, 6.0, 4.4]}
@@ -64,5 +64,6 @@ const Scene: React.FC<SceneProps> = ({ url }) => {
     </Canvas>
   );
 };
+
 
 export default Scene;
