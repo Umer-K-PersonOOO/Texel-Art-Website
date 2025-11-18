@@ -34,6 +34,8 @@ TRANSFORM_SCRIPT = os.getenv(
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/shared/in")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
 LEGACY_OUT = os.path.expanduser(os.path.join("~", "blender_tmp"))  # legacy fallback
+RIG_UPLOAD = os.getenv("RIG_UPLOAD", "/shared/rig_uploads")
+
 
 DEFAULT_SQLITE = "sqlite:////app/backend/mocap.db"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_SQLITE)
@@ -56,10 +58,15 @@ class JointsFile(Base):
     __tablename__ = "joints_files"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    filedata = Column(LargeBinary)
-    videodata = Column(LargeBinary)
+    filedata = Column(LargeBinary)  # .blend
+    videodata = Column(LargeBinary) # .mp4, .mov
     __table_args__ = (UniqueConstraint('name', name='unique_name'),)
 
+class RigFile(Base):
+    __tablename__ = "rig_file"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    rigdata = Column(LargeBinary) # .blend
 
 Base.metadata.create_all(bind=engine)
 
@@ -246,15 +253,15 @@ def _transform_to_glb(id: int, name: str, db: Session):
 
     return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
-@app.get("/transform/rig")
-def transform_rig_get(id: int, name: str, db: Session = Depends(get_db)):
-    """
-    Gets .glb file using rig
+# @app.get("/transform/rig")
+# def transform_rig_get(id: int, name: str, db: Session = Depends(get_db)):
+#     """
+#     Gets .glb file using rig
 
-    For ease of implementation.
-    NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
-    """
-    return _transform_to_glb(id, name, db)
+#     For ease of implementation.
+#     NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
+#     """
+#     return _transform_to_glb(id, name, db)
 
 @app.get("/video/{file_id}")
 def get_video(file_id: int, db: Session = Depends(get_db)):
@@ -271,25 +278,21 @@ def get_video(file_id: int, db: Session = Depends(get_db)):
 
     return StreamingResponse(BytesIO(entry.videodata), media_type=mime)
 
-@app.post("/transform/rig/")
+@app.get("/transform/rig/")
 def transform_rig_post(
-    name: str = Form(...),
-    rig_ref: Optional[str] = Form(None),
-    rig_file: Optional[UploadFile] = File(None),
+    id: int,
+    name: str,
+    rig_file: File,
     db: Session = Depends(get_db),
 ):
     """
-    Purpose: Transform an existing .blend (from DB) into .glb using a rig
+    Gets .glb file using rig
+
+    For ease of implementation.
+    NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
     """
     # resolve rig path (upload or reference)
-    rig_path = None
-    if rig_file is not None:
-        rig_path = _save_rig_upload(rig_file)
-    elif rig_ref:
-        cand = os.path.join(RIGS_DIR, os.path.basename(rig_ref))
-        if not os.path.exists(cand):
-            raise HTTPException(status_code=404, detail=f"rig_ref not found: {rig_ref}")
-        rig_path = cand
+    rig_path = _save_rig_upload(rig_file)
 
     if rig_path is None:
         # fall back to env RIG_BLEND_PATH (backwards compatible)
@@ -306,9 +309,11 @@ def transform_rig_post(
     if os.path.exists(glb_path):
         return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
-    rec = db.query(JointsFile).filter(JointsFile.name == name).first()
+    # fetch .blend from DB
+    rec = db.query(JointsFile).filter(JointsFile.id == id).first()
     if not rec:
         raise HTTPException(status_code=404, detail=f"No .blend stored under name '{name}'")
+    
     with open(blend_input, "wb") as f:
         f.write(rec.filedata)
 
@@ -332,7 +337,7 @@ def get_joints_files(db: Session = Depends(get_db)):
 @app.get("/joints/{file_id}")
 def download_joints_file(file_id: int, db: Session = Depends(get_db)):
     """
-    Purpose: Retrieve a specific .blend file from DB
+    Purpose: Retrieve a specific joints .blend file from DB
     """
     rec = db.query(JointsFile).filter(JointsFile.id == file_id).first()
     if not rec:
@@ -342,11 +347,61 @@ def download_joints_file(file_id: int, db: Session = Depends(get_db)):
         f.write(rec.filedata)
     return {"message": "File restored", "filepath": out}
 
-@app.post("/rigs/upload")
-async def upload_rig(file: UploadFile = File(...)):
+@app.get("/rigs/")
+def get_rigs_files(db: Session = Depends(get_db)):
+    """
+    Purpose: Access database: list all processed joint files in DB
+    """
+    files = db.query(RigFile).all()
+    return [{"id": f.id, "name": f.name} for f in files]
+
+@app.get("/rigs/{file_id}")
+def download_rig_file(file_id: int, db: Session = Depends(get_db)):
+    """
+    Purpose: Retrieve a specific rig .blend file from DB
+    """
+    rec = db.query(RigFile).filter(RigFile.id == file_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="File not found")
+    out = os.path.join("/tmp", f"{rec.name}.blend")
+    with open(out, "wb") as f:
+        f.write(rec.filedata)
+    return {"message": "File restored", "filepath": out}
+
+# WRITE THIS POST METHOD LATER, JUST REFERENCE PROCESS VIDEO METHOD ***************************************
+@app.post("/process/rig")
+async def upload_rig(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+):
     """
     Purpose: Upload a rig file (.blend) for later use
     """
-    path = _save_rig_upload(file)
-    # optional: cheap validation (just existence); real validation happens in Blender
-    return {"ok": True, "rig_ref": os.path.basename(path), "path": path}
+    if not file.filename.lower().endswith(".blend"):
+        raise HTTPException(status_code=400, detail="Only rigified .blend files are supported")
+
+    print(f"[DEBUG] Received file: {file.filename}, rig name: {name}")
+
+    rigdata = await file.read()
+
+    # store upload
+    original = os.path.basename(file.filename)
+    upload_path = os.path.join(RIG_UPLOAD, original)
+    with open(upload_path, "wb") as f:
+        f.write(rigdata)
+
+    print(f"[DEBUG] File saved to: {upload_path}")
+
+    # save to DB with unique logical name
+    unique_name = generate_unique_name(db, name)
+    record = RigFile(
+        name=unique_name, 
+        rigdata=rigdata
+    )
+
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return {"message": "Processed and saved successfully", "id": record.id, "name": unique_name}

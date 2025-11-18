@@ -120,7 +120,7 @@ const App: React.FC = () => {
 
 
             {gridLoading && (
-              <p className="col-span-full text-center text-gray-500">Loading next...</p>
+              <p className="col-span-full text-center text-gray-500">Loading...</p>
             )}
 
             {!gridLoading && files.length === 0 && (
@@ -135,14 +135,13 @@ const App: React.FC = () => {
           <div className="flex-1 flex flex-col md:flex-row gap-4">
             <div className="flex-1 bg-gray-800 rounded-2xl shadow-lg p-0 flex">
               {/* Video Section */}
-              <div className="w-1/2 flex items-center justify-center overflow-hidden">
-                {currentVideoUrl && (
-                  <video autoPlay loop muted 
-                    className="w-full h-full object-contain" 
-                    key={currentVideoUrl}
-                  >
+              <div className="w-1/2 flex items-center justify-center overflow-hidden bg-gray-900">
+                {currentVideoUrl ? (
+                  <video autoPlay loop muted className="w-full h-full object-contain" key={currentVideoUrl}>
                     <source src={currentVideoUrl} type="video/mp4" />
                   </video>
+                ) : (
+                  <p className="text-gray-400 text-center text-lg">Select a video to play</p>
                 )}
               </div>
               {/* 3D Scene Section */}
@@ -155,7 +154,6 @@ const App: React.FC = () => {
 
           <div className="flex-none">
             <GenerateFromVideo
-              setGLBUrl={(u) => setCurrentGLBUrl(u)}
               triggerGLBRefresh={triggerRefresh}
             />
           </div>

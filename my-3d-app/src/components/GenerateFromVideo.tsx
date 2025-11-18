@@ -1,11 +1,10 @@
 import React, { ChangeEvent, FormEvent, useState } from "react";
 
 interface GenerateFromVideoProps {
-  setGLBUrl: (url: string) => void;
   triggerGLBRefresh: () => void;
 }
 
-const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl, triggerGLBRefresh }) => {
+const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ triggerGLBRefresh }) => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [animationName, setAnimationName] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -40,8 +39,6 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl, trigge
 
       if (res.ok) {
         setStatus(`✅ Animation saved as: ${data.name}`);
-        const rigUrl = `http://127.0.0.1:8000/transform/rig?id=${data.id}&name=${data.name}`;
-        setGLBUrl(rigUrl);
         triggerGLBRefresh();
       } else {
         setError(data.error || "Something went wrong.");
@@ -55,6 +52,14 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ setGLBUrl, trigge
 
   return (
     <div className="bg-gray-800 text-white rounded-xl shadow-lg p-6">
+
+      <div>
+        <label className="block text-sm text-gray-300 mb-1">Select Rig</label>
+        <select defaultValue="robot" className="w-full px-3 py-2 rounded-md bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none text-white placeholder-gray-400">
+          <option value="robot">Robot Rig</option>
+        </select>
+      </div>
+
       <h2 className="text-xl font-semibold mb-4 text-center">
         Upload Video to Animate
       </h2>
