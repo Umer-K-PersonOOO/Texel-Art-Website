@@ -15,16 +15,16 @@ const App: React.FC = () => {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [currentGLBUrl, setCurrentGLBUrl] = useState<string>("/models/base.glb");
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string>("");
+  const [currentRigId, setCurrentRigId] = useState<number>(1);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [gridLoading, setGridLoading] = useState<boolean>(true);
   const [loadingCardId, setLoadingCardId] = useState<number | null>(null);
-
 
   // track created URLs for cleanup
   const createdUrlsRef = useRef<string[]>([]);
 
   // cache loaded GLB + video per file
-  const cacheRef = useRef<Record<number, { glbUrl: string; videoUrl: string }>>({});
+  const cacheRef = useRef<Record<string, { glbUrl: string; videoUrl: string }>>({});
 
   const triggerRefresh = () => setRefreshCounter((prev) => prev + 1);
   
@@ -63,8 +63,9 @@ const App: React.FC = () => {
     setLoadingCardId(file.id);
 
     // already cached?
-    if (cacheRef.current[file.id]) {
-      const { glbUrl, videoUrl } = cacheRef.current[file.id];
+    const cacheKey = `${file.id}_${currentRigId}`;
+    if (cacheRef.current[cacheKey]) {
+      const { glbUrl, videoUrl } = cacheRef.current[cacheKey];
       setCurrentGLBUrl(glbUrl);
       setCurrentVideoUrl(videoUrl);
       return;
@@ -72,7 +73,7 @@ const App: React.FC = () => {
 
     // fetch both GLB + video
     const [glbRes, videoRes] = await Promise.all([
-      fetch(`http://127.0.0.1:8000/transform/rig?id=${file.id}&name=${encodeURIComponent(file.name)}`),
+      fetch(`http://127.0.0.1:8000/transform/rig?joint_id=${file.id}&name=${encodeURIComponent(file.name)}&rig_id=${currentRigId}`),
       fetch(`http://127.0.0.1:8000/video/${file.id}`)
     ]);
 
@@ -83,7 +84,7 @@ const App: React.FC = () => {
     const videoUrl = URL.createObjectURL(videoBlob);
 
     // save to cache + cleanup list
-    cacheRef.current[file.id] = { glbUrl, videoUrl };
+    cacheRef.current[cacheKey] = { glbUrl, videoUrl };
     createdUrlsRef.current.push(glbUrl, videoUrl);
 
     setCurrentGLBUrl(glbUrl);
@@ -154,6 +155,11 @@ const App: React.FC = () => {
 
           <div className="flex-none">
             <GenerateFromVideo
+              changeRigId={async (e) => {
+                setCurrentRigId(e);
+                console.log(e);
+                console.log(currentRigId);
+              }}
               triggerGLBRefresh={triggerRefresh}
             />
           </div>

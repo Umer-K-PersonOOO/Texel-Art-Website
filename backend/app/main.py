@@ -280,25 +280,14 @@ def get_video(file_id: int, db: Session = Depends(get_db)):
 
 @app.get("/transform/rig/")
 def transform_rig_post(
-    id: int,
+    joint_id: int,
     name: str,
-    rig_file: File,
+    rig_id: int,
     db: Session = Depends(get_db),
 ):
     """
-    Gets .glb file using rig
-
-    For ease of implementation.
-    NOT A SAFE IMPLEMENTATION, please implement a backend-handled method.
+    Gets .glb file using rig (.blend) and joint (.blend)
     """
-    # resolve rig path (upload or reference)
-    rig_path = _save_rig_upload(rig_file)
-
-    if rig_path is None:
-        # fall back to env RIG_BLEND_PATH (backwards compatible)
-        rig_path = os.getenv("RIG_BLEND_PATH")
-        if not rig_path or not os.path.exists(rig_path):
-            raise HTTPException(status_code=400, detail="No rig provided. Upload rig_file or pass rig_ref.")
 
     # write the .blend from DB to OUTPUT_DIR/base.blend (as you already do)
     base = safe_name(name)
@@ -309,13 +298,25 @@ def transform_rig_post(
     if os.path.exists(glb_path):
         return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
-    # fetch .blend from DB
-    rec = db.query(JointsFile).filter(JointsFile.id == id).first()
-    if not rec:
+    # fetch joint .blend from DB
+    joint_rec = db.query(JointsFile).filter(JointsFile.id == joint_id).first()
+    if not joint_rec:
         raise HTTPException(status_code=404, detail=f"No .blend stored under name '{name}'")
     
     with open(blend_input, "wb") as f:
-        f.write(rec.filedata)
+        f.write(joint_rec.filedata)
+
+    # fetch rig .blend from DB
+    rig_rec = db.query(RigFile).filter(RigFile.id == rig_id).first()
+    if not rig_rec:
+        raise HTTPException(status_code=404, detail=f"No rig with id {rig_id}")
+    
+    # write rig file
+    rig_base = safe_name(rig_rec.name)
+    rig_path = os.path.join(RIGS_DIR, f"{rig_base}.blend")
+
+    with open(rig_path, "wb") as f:
+        f.write(rig_rec.filedata)
 
     # run Blender transform with the rig path
     cmd = _blender_cmd(["--python", TRANSFORM_SCRIPT, "--", base, blend_input, rig_path])
@@ -368,8 +369,7 @@ def download_rig_file(file_id: int, db: Session = Depends(get_db)):
         f.write(rec.filedata)
     return {"message": "File restored", "filepath": out}
 
-# WRITE THIS POST METHOD LATER, JUST REFERENCE PROCESS VIDEO METHOD ***************************************
-@app.post("/process/rig")
+@app.post("/upload/rig/", response_model=None)
 async def upload_rig(
     file: UploadFile = File(...),
     name: str = Form(...),
