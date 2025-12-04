@@ -18,6 +18,8 @@ XVFB_SCREEN = os.getenv("XVFB_WHD", "1920x1080x24")
 ALLOWED_RIG_EXTS = {".blend", ".fbx", ".obj"}
 RIGS_DIR = os.getenv("RIGS_DIR", "/shared/rigs")
 os.makedirs(RIGS_DIR, exist_ok=True)
+MAPPINGS_DIR = os.getenv("MAPPINGS_DIR", "/shared/rig_mappings")
+os.makedirs(MAPPINGS_DIR, exist_ok=True)
 
 # NOTE: default to the installed add-on inside Blender's addons dir
 MOCAP_SCRIPT = os.getenv(
@@ -28,6 +30,7 @@ TRANSFORM_SCRIPT = os.getenv(
     "TRANSFORM_SCRIPT",
     "/root/.config/blender/4.1/scripts/addons/BlendArMocap/src/transform_addon_script.py",
 )
+BUILTIN_MAPPING_PATH = pathlib.Path(TRANSFORM_SCRIPT).resolve().parent / "cgt_transfer" / "data" / "Rigify_Humanoid_DefaultFace_v0.6.1.json"
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/shared/in")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
@@ -99,6 +102,39 @@ def _save_rig_upload(file: UploadFile) -> str:
         shutil.copyfileobj(file.file, f)
     return dest
 
+def _save_mapping_upload(file: UploadFile) -> str:
+    ext = pathlib.Path(file.filename).suffix.lower()
+    if ext != ".json":
+        raise HTTPException(status_code=400, detail="Mapping files must be .json")
+    safe = safe_name(file.filename) + ext
+    dest = os.path.join(MAPPINGS_DIR, safe)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return dest
+
+def _resolve_mapping_path(mapping_ref: Optional[str], mapping_file: Optional[UploadFile]) -> str:
+    path = None
+
+    if mapping_file is not None:
+        path = _save_mapping_upload(mapping_file)
+    elif mapping_ref:
+        cand = os.path.join(MAPPINGS_DIR, os.path.basename(mapping_ref))
+        if not os.path.exists(cand):
+            raise HTTPException(status_code=404, detail=f"mapping_ref not found: {mapping_ref}")
+        path = cand
+    else:
+        env_path = os.getenv("TRANSFER_MAPPING_PATH") or os.getenv("MAPPING_FILE_PATH")
+        if env_path:
+            path = env_path
+
+    if not path:
+        path = str(BUILTIN_MAPPING_PATH)
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=400, detail=f"Mapping file not found: {path}")
+
+    return path
+
 def _blender_cmd(extra: list[str]) -> list[str]:
     base = [BLENDER_BIN, "--factory-startup", "--addons", ADDON_MODULE]
     cmd = base + extra
@@ -133,10 +169,23 @@ def run_blender_mocap(collection_name: str, file_path: str) -> None:
     cmd = _blender_cmd(["--python", MOCAP_SCRIPT, "--", collection_name, file_path])
     _run(cmd)
 
-def run_blender_transform(name: str, blend_input_path: str) -> None:
+def run_blender_transform(name: str, blend_input_path: str, rig_path: str | None = None, mapping_path: str | None = None) -> None:
     if not os.path.exists(TRANSFORM_SCRIPT):
         raise HTTPException(status_code=500, detail=f"transform_addon_script not found at {TRANSFORM_SCRIPT}")
-    cmd = _blender_cmd(["--python", TRANSFORM_SCRIPT, "--", name, blend_input_path])
+    if mapping_path and not rig_path:
+        env_rig = os.getenv("RIG_BLEND_PATH")
+        if env_rig and os.path.exists(env_rig):
+            rig_path = env_rig
+        else:
+            raise HTTPException(status_code=400, detail="mapping_path provided but no rig_path; set RIG_BLEND_PATH or upload a rig.")
+    if mapping_path and not os.path.exists(mapping_path):
+        raise HTTPException(status_code=400, detail=f"Mapping file not found: {mapping_path}")
+    extras = ["--python", TRANSFORM_SCRIPT, "--", name, blend_input_path]
+    if rig_path:
+        extras.append(rig_path)
+    if mapping_path:
+        extras.append(mapping_path)
+    cmd = _blender_cmd(extras)
     _run(cmd)
 
 # FastAPI
@@ -223,6 +272,8 @@ def transform_rig_post(
     name: str = Form(...),
     rig_ref: Optional[str] = Form(None),
     rig_file: Optional[UploadFile] = File(None),
+    mapping_ref: Optional[str] = Form(None),
+    mapping_file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
 ):
     # resolve rig path (upload or reference)
@@ -241,13 +292,15 @@ def transform_rig_post(
         if not rig_path or not os.path.exists(rig_path):
             raise HTTPException(status_code=400, detail="No rig provided. Upload rig_file or pass rig_ref.")
 
+    mapping_path = _resolve_mapping_path(mapping_ref, mapping_file)
+
     # write the .blend from DB to OUTPUT_DIR/base.blend (as you already do)
     base = safe_name(name)
     glb_path = output_glb_path(base)
     blend_input = os.path.join(OUTPUT_DIR, f"{base}.blend")
 
-    # cache?
-    if os.path.exists(glb_path):
+    cache_ok = not any([rig_file, rig_ref, mapping_file, mapping_ref])
+    if cache_ok and os.path.exists(glb_path):
         return FileResponse(path=glb_path, filename=f"{base}.glb", media_type="model/gltf-binary")
 
     rec = db.query(JointsFile).filter(JointsFile.name == name).first()
@@ -257,8 +310,7 @@ def transform_rig_post(
         f.write(rec.filedata)
 
     # run Blender transform with the rig path
-    cmd = _blender_cmd(["--python", TRANSFORM_SCRIPT, "--", base, blend_input, rig_path])
-    _run(cmd)
+    run_blender_transform(base, blend_input, rig_path, mapping_path)
 
     if not os.path.exists(glb_path):
         raise HTTPException(status_code=500, detail=f"Transform completed but {glb_path} not found")

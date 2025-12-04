@@ -1,22 +1,47 @@
 # transform_addon_script.py
 import bpy, os, sys, pathlib
+import importlib
+
+# Ensure addon sources are importable both inside the packaged addon (BlendArMocap)
+# and when running from a checked-out repo.
+HERE = pathlib.Path(__file__).resolve()
+SRC_DIR = HERE.parent
+ADDON_ROOT = SRC_DIR.parent  # e.g. /root/.config/blender/.../BlendArMocap
+for p in (SRC_DIR, ADDON_ROOT, ADDON_ROOT.parent):
+    if p and str(p) not in sys.path:
+        sys.path.append(str(p))
+
+try:
+    # Preferred: import with the addon package name so relative imports inside modules stay valid
+    from BlendArMocap.src.cgt_transfer.core_transfer import tf_load_object_properties, tf_transfer_management
+except ImportError:
+    # Fallback: direct import when running from the source tree
+    from cgt_transfer.core_transfer import tf_load_object_properties, tf_transfer_management
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "/shared/out")
+BUILTIN_MAPPING = pathlib.Path(__file__).parent / "cgt_transfer" / "data" / "Rigify_Humanoid_DefaultFace_v0.6.1.json"
 
-# Args: -- <export_name> <blend_input_path> <rig_path>
+# Args: -- <export_name> <blend_input_path> <rig_path> [mapping_path]
 args = sys.argv
 if "--" in args:
     i = args.index("--")
     export_name = args[i+1]
     blend_input_path = args[i+2]
     rig_path = args[i+3] if len(args) > i+3 else os.getenv("RIG_BLEND_PATH", "")
+    mapping_path = args[i+4] if len(args) > i+4 else os.getenv("TRANSFER_MAPPING_PATH", "")
 else:
     export_name = "default_output"
     blend_input_path = "/tmp/fallback_mocap.blend"
     rig_path = os.getenv("RIG_BLEND_PATH", "")
+    mapping_path = os.getenv("TRANSFER_MAPPING_PATH", "")
+
+mapping_path = mapping_path or str(BUILTIN_MAPPING)
+mapping_path = os.path.abspath(mapping_path)
 
 if not rig_path or not os.path.exists(rig_path):
     raise RuntimeError(f"Rig file missing or not found: {rig_path}")
+if not os.path.exists(mapping_path):
+    raise RuntimeError(f"Transfer mapping file missing or not found: {mapping_path}")
 
 def clear_scene_hard():
     if bpy.context.object and bpy.context.object.mode != 'OBJECT':
@@ -143,12 +168,26 @@ print(f"Selected Rig set to: {rig_obj!r}")
 # 3) Bring in drivers from the mocap .blend
 drivers, pose_driver = append_drivers_collection(blend_input_path)
 print("Drivers Collection:", drivers, "Pose Driver:", pose_driver)
+print(f"Using transfer mapping: {mapping_path}")
 
 # 4) Wire up addon settings (as you had)
 bpy.context.scene.cgtinker_mediapipe.enum_detection_type = 'POSE'
 bpy.context.scene.cgtinker_transfer.selected_driver_collection = pose_driver
 bpy.context.scene.cgtinker_transfer.selected_rig = rig_obj
-bpy.ops.button.cgt_object_apply_properties()
+
+# Load mapping and transfer onto rig
+tf_load_object_properties.load(bpy.context.scene.objects, mapping_path, rig_obj)
+objs_for_transfer = []
+def _collect(col):
+    objs_for_transfer.extend(list(col.objects))
+    for sub in col.children:
+        _collect(sub)
+if pose_driver:
+    _collect(pose_driver)
+else:
+    raise RuntimeError("Pose driver collection not found in mocap .blend")
+tf_transfer_management.main(objs_for_transfer)
+bpy.context.view_layer.update()
 
 # 5) Bake pose on the detected rig
 bake_pose_action(rig_obj)

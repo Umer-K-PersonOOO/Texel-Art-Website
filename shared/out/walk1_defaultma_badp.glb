@@ -1,0 +1,1 @@
+{"detail":[{"type":"value_error","loc":["body","rig_file"],"msg":"Value error, Expected UploadFile, received: <class 'str'>","input":"shared/rig_uploads/remy.blend","ctx":{"error":{}}}]}
