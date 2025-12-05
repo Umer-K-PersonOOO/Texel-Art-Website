@@ -269,7 +269,9 @@ def _transform_to_glb(name: str, db: Session):
 
 @app.post("/transform/rig/")
 def transform_rig_post(
-    name: str = Form(...),
+    joint_id: int,
+    name: str,
+    rig_id: int,
     rig_ref: Optional[str] = Form(None),
     rig_file: Optional[UploadFile] = File(None),
     mapping_ref: Optional[str] = Form(None),

@@ -7,10 +7,11 @@ interface JointFile {
 }
 
 interface GLBGridProps {
-  onSelectGLB: (url: string) => void;
+  onSelectGLB: (glbUrl: string, videoUrl: string) => void;
+  refreshTrigger: number; // increment to trigger refetch
 }
 
-const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB }) => {
+const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB, refreshTrigger }) => {
   const [files, setFiles] = useState<JointFile[]>([]);
 
   useEffect(() => {
@@ -25,25 +26,36 @@ const GLBGrid: React.FC<GLBGridProps> = ({ onSelectGLB }) => {
     };
 
     fetchFiles();
-  }, []);
+  }, [refreshTrigger]);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6">
+    <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
       {files.map((file) => {
-        const fileUrl = `http://127.0.0.1:8000/transform/rig?name=${file.name}`;
+        console.log("123456" + file.name)
+        const glbUrl = `http://127.0.0.1:8000/transform/rig?id=${file.id}&name=${file.name}`;
+        const videoUrl = `http://127.0.0.1:8000/video/${file.id}`
         return (
           <div
             key={file.id}
-            onClick={() => onSelectGLB(fileUrl)}
-            className="border rounded-lg shadow-md bg-white p-2 w-full max-w-[200px] mx-auto cursor-pointer hover:scale-105 transition-transform aspect-square"
+            onClick={() => onSelectGLB(glbUrl, videoUrl)}
+            className="rounded-xl bg-white shadow hover:shadow-lg hover:-translate-y-1 transition-transform duration-200 cursor-pointer"
           >
-            <div className="aspect-square w-full">
-              <Scene url={fileUrl} />
+            <div className="aspect-square rounded-t-xl overflow-hidden bg-gray-100">
+              <Scene url={glbUrl} />
             </div>
-            <p className="text-center mt-2 text-sm text-black truncate">{file.name}</p>
+            <div className="p-2">
+              <p className="text-center text-gray-800 font-medium truncate">
+                {file.name}
+              </p>
+            </div>
           </div>
         );
       })}
+      {files.length === 0 && (
+        <p className="col-span-full text-center text-gray-500">
+          No animations found.
+        </p>
+      )}
     </div>
   );
 };
