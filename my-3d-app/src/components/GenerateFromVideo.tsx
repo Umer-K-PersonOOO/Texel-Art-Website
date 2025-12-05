@@ -13,6 +13,7 @@ interface RigEntry {
 
 const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ changeRigId, triggerGLBRefresh }) => {
   const [rigs, setRigs] = useState<RigEntry[]>([]);
+  const [selectedRigId, setSelectedRigId] = useState<number | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [animationName, setAnimationName] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -20,15 +21,31 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ changeRigId, trig
   const [loading, setLoading] = useState<boolean>(false);
   const [rigUploadLoading, setRigUploadLoading] = useState(false);
 
-
   const isValidName = (name: string) => /^[a-zA-Z0-9_-]+$/.test(name);
 
   useEffect(() => {
     async function loadMetadata() {
-      const res = await fetch("http://127.0.0.1:8000/rigs");
-      const metadata: { id: number; name: string }[] = await res.json();
-
-      setRigs(metadata); // only store id + name
+      try {
+        const res = await fetch("http://127.0.0.1:8000/rigs");
+        const metadata = await res.json();
+        if (Array.isArray(metadata)) {
+          setRigs(metadata);
+          if (metadata.length > 0) {
+            setSelectedRigId(metadata[0].id);
+            changeRigId(metadata[0].id);
+          } else {
+            setSelectedRigId(null);
+          }
+        } else {
+          console.error("Unexpected rigs payload", metadata);
+          setRigs([]);
+          setSelectedRigId(null);
+        }
+      } catch (err) {
+        console.error("Failed to load rigs", err);
+        setRigs([]);
+        setSelectedRigId(null);
+      }
     }
 
     loadMetadata();
@@ -46,6 +63,11 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ changeRigId, trig
     if (!["mp4", "mov"].includes(ext || "")) return setError("Only .mp4 and .mov files are allowed.");
     if (!animationName.trim()) return setError("Please enter an animation name.");
     if (!isValidName(animationName)) return setError("Name can only contain letters, numbers, dashes, or underscores.");
+    if (selectedRigId === null) {
+      setError("Please select a rig first.");
+      setLoading(false);
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", videoFile);
@@ -79,15 +101,20 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ changeRigId, trig
       <div>
         <label className="block text-sm text-gray-300 mb-1">Choose Existing Rig</label>
         <select
-          defaultValue="robot"
+          value={selectedRigId ?? ""}
           className="w-full px-3 py-2 rounded-md bg-gray-700 border border-gray-600 
                     focus:ring-2 focus:ring-blue-500 outline-none text-white"
+          disabled={!rigs.length}
           onChange={(e) => {
-            changeRigId(Number(e.target.value));
-            console.log(e.target);
+            const id = Number(e.target.value);
+            setSelectedRigId(id);
+            changeRigId(id);
           }}
         >
-          {rigs.map((rig) => (
+          <option value="" disabled>
+            {rigs.length ? "Select a rig" : "No rigs available"}
+          </option>
+          {Array.isArray(rigs) && rigs.map((rig) => (
             <option key={rig.id} value={rig.id}>{rig.name}</option>
           ))}
         </select>
@@ -119,6 +146,7 @@ const GenerateFromVideo: React.FC<GenerateFromVideoProps> = ({ changeRigId, trig
 
               if (res.ok) {
                 changeRigId(data.id);
+                setSelectedRigId(data.id);
                 // refresh dropdown
                 setRigs(prev => [...prev, { id: data.id, name: data.name }]);
               } else {

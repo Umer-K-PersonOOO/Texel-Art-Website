@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [gridLoading, setGridLoading] = useState<boolean>(true);
   const [loadingCardId, setLoadingCardId] = useState<number | null>(null);
+  const [processingScene, setProcessingScene] = useState<boolean>(false);
 
   // track created URLs for cleanup
   const createdUrlsRef = useRef<string[]>([]);
@@ -146,8 +147,17 @@ const App: React.FC = () => {
                 )}
               </div>
               {/* 3D Scene Section */}
-              <div className="w-1/2 flex items-center justify-center overflow-hidden">
-                <Scene key={currentGLBUrl} url={currentGLBUrl}/>
+              <div className="w-1/2 flex flex-col items-center justify-center overflow-hidden">
+                {processingScene && (
+                  <p className="text-sm text-gray-400 mb-1">Processing model...</p>
+                )}
+                <Scene
+                  key={currentGLBUrl}
+                  url={currentGLBUrl}
+                  onLoadStart={() => setProcessingScene(true)}
+                  onLoadEnd={() => setProcessingScene(false)}
+                  onError={() => setProcessingScene(false)}
+                />
               </div>
             </div>
           </div>

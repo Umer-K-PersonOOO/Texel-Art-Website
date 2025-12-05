@@ -17,10 +17,11 @@ function Loader() {
 
 interface ModelWithAnimationProps {
   url: string;
-  onReady?: () => void;
+  onLoadEnd?: () => void;
+  onError?: (err: unknown) => void;
 }
 
-function ModelWithAnimation({ url }: ModelWithAnimationProps) {
+function ModelWithAnimation({ url, onLoadEnd, onError }: ModelWithAnimationProps) {
   const gltf = useLoader(GLTFLoader, url);
   const modelRef = useRef<THREE.Group>(null);
   const { animations } = gltf;
@@ -37,17 +38,32 @@ function ModelWithAnimation({ url }: ModelWithAnimationProps) {
     } else {
       console.warn("No animations found for:", url);
     }
+    onLoadEnd?.();
   }, [actions, animations]);
 
-  return <primitive object={gltf.scene} ref={modelRef} position={[0, 0, 0]} />;
+  return (
+    <primitive
+      object={gltf.scene}
+      ref={modelRef}
+      position={[0, 0, 0]}
+      onError={onError}
+    />
+  );
 }
 
 
 interface SceneProps {
   url: string;
+  onLoadStart?: () => void;
+  onLoadEnd?: () => void;
+  onError?: (err: unknown) => void;
 }
 
-const Scene: React.FC<SceneProps> = ({ url }) => {
+const Scene: React.FC<SceneProps> = ({ url, onLoadStart, onLoadEnd, onError }) => {
+  useEffect(() => {
+    onLoadStart?.();
+  }, [url]);
+
   return (
     <Canvas camera={{ position: [1.3, 1.5, 1.9] }} shadows>
       <Suspense fallback={<Loader />}>
@@ -56,7 +72,7 @@ const Scene: React.FC<SceneProps> = ({ url }) => {
           castShadow
           intensity={Math.PI}
         />
-        <ModelWithAnimation url={url} />
+        <ModelWithAnimation url={url} onLoadEnd={onLoadEnd} onError={onError} />
         <OrbitControls target={[0, 1, 0]} />
         <axesHelper args={[5]} />
         <Stats />
